@@ -568,6 +568,7 @@
                 ? '<label class="row tight" style="margin-top:6px"><input type="checkbox" id="cnPinClear" style="width:auto"> ' +
                   esc(t("kids.pinRemove")) + "</label>"
                 : "") + "</div>" +
+        (isNew ? '<p class="hint">' + esc(t("kids.willStartWith", { n: U.iso(S.num(S.get().settings.startPoints)) })) + "</p>" : "") +
         '<div class="field"><span class="field-label">' + esc(t("tr.childLang")) + "</span>" +
           langChips(c.lang || S.get().settings.lang, "p.childLang") + "</div>" +
         '<div class="field"><span class="field-label">' + esc(t("common.avatar")) + "</span>" +
@@ -640,6 +641,9 @@
         '<div class="hint">' + esc(t("tr.userLangHint")) + "</div></div>" +
       '<div class="field"><span class="field-label">' + esc(t("tr.defaultLang")) + "</span>" +
         langChips(s.settings.lang, "p.lang") + "</div>" +
+      '<div class="field"><label for="sStart">' + esc(t("family.startPoints")) + "</label>" +
+        '<input id="sStart" type="number" min="0" step="10" value="' + S.num(s.settings.startPoints) + '">' +
+        '<div class="hint">' + esc(t("family.startPointsHint")) + "</div></div>" +
       '<div class="field"><label for="sPrize">' + esc(t("family.weeklyPrize")) + "</label>" +
         '<input id="sPrize" type="text" value="' + esc(s.settings.weeklyPrize || "") +
         '" placeholder="' + esc(t("movie.prizeDefault")) + '">' +
@@ -1153,6 +1157,7 @@
     s.settings.familyNames = names;
     s.settings.familyName = names[familyNameLang] || s.settings.familyName ||
       Object.keys(names).map(function (k) { return names[k]; })[0] || "";
+    s.settings.startPoints = Math.max(0, S.num(U.el("#sStart", form).value));
     s.settings.weeklyPrize = U.el("#sPrize", form).value.trim();
     s.settings.weekStart = S.num(U.el("#sWeek", form).value);
     s.settings.movieDay = S.num(U.el("#sMovie", form).value);

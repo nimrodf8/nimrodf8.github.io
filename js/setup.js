@@ -135,7 +135,8 @@
         " (" + esc(draft.parent.username) + ")</span></div>" +
       '<div class="kv"><span class="k">' + esc(t("common.children")) + '</span><span>' +
         draft.children.map(function (c) { return esc(c.names[draft.lang] || c.name); }).join(", ") + "</span></div>" +
-      '<div class="kv"><span class="k">' + esc(t("setup.startingPoints")) + '</span><span>' + draft.startPoints + "</span></div>" +
+      '<div class="field"><label for="sPoints">' + esc(t("setup.startingPoints")) + "</label>" +
+        '<input id="sPoints" type="number" min="0" step="10" value="' + draft.startPoints + '"></div>' +
       '<div class="row gap mt">' +
         '<button class="btn ghost" data-act="setup.back">←</button>' +
         '<button class="btn grow" data-act="setup.create">' + esc(t("setup.createFamily")) + "</button>" +
@@ -166,6 +167,8 @@
       if (v("cName") !== null) setNameFor(draft.childForm.names, draft.childForm.nameLang, v("cName"));
       if (v("cBday") !== null) draft.childForm.birthday = v("cBday");
       if (v("cPin") !== null) draft.childForm.pin = v("cPin").replace(/\D/g, "");
+    } else if (step === 4) {
+      if (v("sPoints") !== null) draft.startPoints = Math.max(0, parseInt(v("sPoints"), 10) || 0);
     }
   }
 
@@ -177,6 +180,8 @@
       if (!firstName(p.names) || !p.username || !p.password) return t("setup.errParent");
       if (p.password.length < 4) return t("setup.errPassShort");
       if (p.password !== p.password2) return t("setup.errPass2");
+    } else if (step === 4) {
+      if (v("sPoints") !== null) draft.startPoints = Math.max(0, parseInt(v("sPoints"), 10) || 0);
     } else if (step === 3) {
       if (!draft.children.length) return t("setup.errChildren");
     }
@@ -239,6 +244,7 @@
     capture(); error = ""; step = Math.max(1, step - 1); global.App.refresh();
   });
   U.on("setup.create", function () {
+    capture();                 // the starting points may have just been typed
     global.Store.createFamily({
       lang: draft.lang,
       familyName: draft.familyNames[draft.lang] || firstName(draft.familyNames),

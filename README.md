@@ -38,7 +38,8 @@ truth, so rebuild after changing anything there. The first visit walks a parent 
 1. Family name and language
 2. The first parent account (username + password)
 3. The children — name, character, birthday and an optional 4-digit PIN
-4. Confirm; each child starts with **500 points** and a starter set of tasks
+4. Choose the starting balance (500 unless you change it) and confirm; a starter
+   set of tasks and rewards comes with it
 
 ## Everything is editable
 
@@ -49,6 +50,9 @@ are examples to be renamed, repriced, reassigned or deleted:
   (per language), character, their own language, birthday and PIN for a child,
   username and password for a parent. There are 118 characters to pick from for
   a child and 38 for a parent.
+- **What a new child starts with** — 500 by default; set it in the wizard or
+  later in *Family → Points a new child starts with*. It applies to children
+  added from then on and never rewrites a balance somebody already has.
 - **Tasks** — add, edit, pause or delete, and change what they are worth.
 - **Categories** — add, rename and change the icon.
 - **Rewards** — a full catalogue, see below.
