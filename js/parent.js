@@ -497,6 +497,7 @@
           '<span class="tag">' + esc(t("kids.week")) + " " + esc(U.signed(S.weekEarned(c.id))) + "</span>" +
           (bd ? '<span class="tag brand">🎂 ' + esc(bd.days === 0 ? t("dash.birthdayToday") : t("dash.daysLeft", { n: U.iso(bd.days) })) + "</span>" : "") +
           (bd ? '<span class="tag">' + esc(t("kids.age", { n: U.iso(bd.age) })) + "</span>" : "") +
+          '<span class="tag">' + (c.pin ? "🔒 " + esc(t("kids.pin")) : "🔓 " + esc(t("kids.pinNone"))) + "</span>" +
         "</div>" +
       "</div>";
 
@@ -562,8 +563,11 @@
             '<input id="cnBday" type="date" value="' + esc(c.birthday || "") + '"></div>' +
           '<div class="field"><label for="cnPin">' + esc(t("kids.pin")) + " <small>(" + esc(t("common.optional")) + ")</small></label>" +
             '<input id="cnPin" type="tel" inputmode="numeric" maxlength="4" class="pin-input" placeholder="' +
-              (c.pin ? "••••" : "") + '"><div class="hint">' + esc(t("setup.pinHelp")) + "</div></div>" +
-        "</div>" +
+              (c.pin ? "••••" : "") + '"><div class="hint">' + esc(t("setup.pinHelp")) + "</div>" +
+              (c.pin
+                ? '<label class="row tight" style="margin-top:6px"><input type="checkbox" id="cnPinClear" style="width:auto"> ' +
+                  esc(t("kids.pinRemove")) + "</label>"
+                : "") + "</div>" +
         '<div class="field"><span class="field-label">' + esc(t("tr.childLang")) + "</span>" +
           langChips(c.lang || S.get().settings.lang, "p.childLang") + "</div>" +
         '<div class="field"><span class="field-label">' + esc(t("common.avatar")) + "</span>" +
@@ -871,10 +875,12 @@
     var birthday = U.el("#cnBday", form).value;
     var pin = U.el("#cnPin", form).value.replace(/\D/g, "");
     if (pin && pin.length !== 4) return U.toast(t("setup.errPin"), "bad");
+    var clearPin = U.el("#cnPinClear", form);
     if (d.id) {
       S.updateChild(d.id, { name: name, names: S.clone(editingNames), birthday: birthday,
                             avatar: editingAvatar, lang: editingLang });
-      if (pin) S.setChildPin(d.id, pin);
+      if (clearPin && clearPin.checked) S.setChildPin(d.id, null);
+      else if (pin) S.setChildPin(d.id, pin);
     } else {
       S.addChild({ name: name, names: S.clone(editingNames), birthday: birthday,
                    avatar: editingAvatar, pin: pin, lang: editingLang }, me().id);

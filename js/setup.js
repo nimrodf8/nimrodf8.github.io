@@ -351,7 +351,9 @@
   });
   U.on("login.pin", function (d, form) {
     var c = global.Store.child(pinChildId);
-    var val = U.el("#pinBox", form).value;
+    // A PIN is stored as digits only, so read it back the same way: a keyboard
+    // that slips in a space or a direction mark must not fail a correct code.
+    var val = U.el("#pinBox", form).value.replace(/\D/g, "");
     if (!c || !global.Store.checkSecret(c.pin, val)) {
       U.toast(t("auth.badPin"), "bad");
       return;
