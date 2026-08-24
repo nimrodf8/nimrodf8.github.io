@@ -74,7 +74,7 @@
             : t("app.tagline");
 
     return '<div class="wrap">' +
-      '<div class="brand-mark">🏆</div>' +
+      '<div class="brand-mark">👪</div>' +
       '<div class="bar-title"><strong>' + esc(title) + "</strong><small>" + esc(sub || "") + "</small></div>" +
       '<div class="bar-actions">' +
         (global.Sync.connected()

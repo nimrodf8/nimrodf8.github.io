@@ -276,7 +276,7 @@
     var s = global.Store.get();
     return '<div class="wrap">' +
       '<div class="card center" style="padding-block:26px">' +
-        '<div class="brand-mark" style="margin:0 auto 10px;width:52px;height:52px;font-size:1.5rem">🏆</div>' +
+        '<div class="brand-mark" style="margin:0 auto 10px;width:52px;height:52px;font-size:1.5rem">👪</div>' +
         "<h1>" + U.familyName() + "</h1>" +
         '<p class="lead">' + esc(t("app.tagline")) + "</p>" +
       "</div>" +
