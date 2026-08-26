@@ -22,7 +22,6 @@
 
   function meTab(c) {
     var bd = S.birthdayInfo(c);
-    var rank = S.standings().findIndex(function (r) { return r.child.id === c.id; }) + 1;
     var recent = S.get().ledger.filter(function (l) { return l.childId === c.id; }).slice().reverse().slice(0, 8);
 
     var html = '<div class="wrap">' +
@@ -32,7 +31,6 @@
         '<div class="score" style="font-size:2.8rem">' + S.balance(c.id) + "</div>" +
         '<small>' + esc(t("common.points")) + "</small>" +
         '<div class="row gap mt" style="justify-content:center">' +
-          '<span class="tag" style="background:rgba(255,255,255,.22);color:#fff">' + esc(t("common.rank")) + " " + rank + "</span>" +
           '<span class="tag" style="background:rgba(255,255,255,.22);color:#fff">' +
             esc(t("dash.earnedThisWeek", { n: U.signed(S.weekEarned(c.id)) })) + "</span>" +
         "</div>" +
@@ -186,7 +184,6 @@
   function groupTab(c) {
     var s = S.get();
     var gp = S.goalProgress();
-    var rows = S.standings();
     var top = S.topScorer();
 
     var html = '<div class="wrap">' +
@@ -202,16 +199,6 @@
               ? t("rewards.nextGoal", { name: U.keyedTitle(gp.next) }) + " · " + t("rewards.short", { n: U.iso(gp.missing) })
               : t("rewards.short", { n: U.iso(gp.missing) })) + "</small>") +
       "</div>";
-
-    html += '<div class="section-title">' + esc(t("dash.standings")) + "</div>" +
-      '<div class="card flush"><ul class="list">' + rows.map(function (r, i) {
-        return '<li' + (r.child.id === c.id ? ' style="background:var(--brand-soft)"' : "") + ">" +
-          '<span class="rank-badge' + (i === 0 && r.earned > 0 ? " gold" : "") + '">' + (i + 1) + "</span>" +
-          U.avatar(r.child.avatar, 38) +
-          '<div class="grow"><div class="title">' + U.name(r.child) + "</div>" +
-          '<div class="sub">' + esc(t("dash.earnedThisWeek", { n: U.signed(r.earned) })) + "</div></div>" +
-          '<strong class="score" style="font-size:1.1rem">' + r.balance + "</strong></li>";
-      }).join("") + "</ul></div>";
 
     html += '<div class="section-title">' + esc(t("movie.history")) + "</div>" +
       '<div class="card">' + (s.movieNights.length

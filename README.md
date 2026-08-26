@@ -188,13 +188,16 @@ cannot edit or delete anything already on a list, and nothing they do moves a
 single point on its own. Every request waits for a parent, and hovering a
 pending mark says exactly when the child reported it, on both sides.
 
-- Me — their points, rank, birthday countdown and recent movement
+- Me — their points, what they earned this week, birthday countdown and recent
+  movement
 - Tasks — everything assigned to them, with an **I did it** button that sends a
   report to the parents rather than awarding points directly
 - Rewards — what their points can buy, what is still out of reach and by how
   much, and an **I want this** button that asks a parent
-- Group — the shared bank, the standings and the history of movie nights and
-  outings
+- Group — the shared bank and the history of movie nights and rewards. **No
+  standings**: a child sees their own points, never a table of everyone else's,
+  and no rank number either. Comparing the children is the parents' view, not
+  a thing the children scroll past every day.
 - Notes — their own notebook, birthday wish list and outing wishes; they add to
   these, and a parent edits or removes
 
