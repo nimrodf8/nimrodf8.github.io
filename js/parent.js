@@ -43,14 +43,16 @@
     html += '<div class="section-title">' + esc(t("dash.standings")) + "</div>";
     html += '<div class="card flush">' + (rows.length
       ? '<ul class="list">' + rows.map(function (r, i) {
-          return '<li class="tappable" data-act="p.openChild" data-id="' + r.child.id + '">' +
+          return '<li class="tappable kid-row" data-act="p.openChild" data-id="' + r.child.id +
+            '" style="--kid:' + S.childColor(r.child) + '">' +
             '<span class="rank-badge' + (i === 0 && r.earned > 0 ? " gold" : "") + '">' + (i + 1) + "</span>" +
-            U.avatar(r.child.avatar, 40) +
+            U.childAvatar(r.child, 40) +
             '<div class="grow"><div class="title">' + U.name(r.child) + "</div>" +
             '<div class="sub">' + esc(t("dash.earnedThisWeek", { n: U.signed(r.earned) })) + "</div></div>" +
-            '<strong class="score" style="font-size:1.15rem">' + r.balance + "</strong></li>";
+            U.scoreEl("dash:" + r.child.id, r.balance, { style: "font-size:1.15rem" }) + "</li>";
         }).join("") + "</ul>"
-      : U.emptyState(t("common.empty"), "🧒")) + "</div>";
+      : U.emptyState(t("common.empty"), "🧒", t("empty.kids"),
+          '<button class="btn small" data-act="p.childNew">＋ ' + esc(t("kids.add")) + "</button>")) + "</div>";
 
     html += birthdaysCard();
     html += activityCard();
@@ -114,7 +116,7 @@
                   : t("dash.daysLeft", { n: r.bd.days });
         return '<div class="countdown' + (r.bd.days === 0 ? " today" : "") + '">' +
           '<span class="days">' + (r.bd.days === 0 ? "🎂" : r.bd.days) + "</span>" +
-          U.avatar(r.child.avatar, 36) +
+          U.childAvatar(r.child, 36) +
           '<div class="grow"><div class="title">' + U.name(r.child) + "</div>" +
           '<div class="sub">' + esc(label) + " · " + esc(t("dash.turns", { n: r.bd.turning })) + "</div></div></div>";
       }).join("") + "</div>";
@@ -126,7 +128,7 @@
     if (!rows.length) return "";
     return '<div class="section-title">' + esc(t("dash.activity")) + "</div>" +
       '<div class="card flush"><ul class="list">' + rows.map(function (l) {
-        return "<li>" + (l.childId ? U.avatar((S.child(l.childId) || {}).avatar, 34) : '<span class="rank-badge">👨‍👩‍👧</span>') +
+        return "<li>" + (l.childId ? U.childAvatar(S.child(l.childId), 34) : '<span class="rank-badge">👨‍👩‍👧</span>') +
           '<div class="grow"><div class="title">' + ledgerLabelHtml(l) + "</div>" +
           '<div class="sub">' + esc(l.childId ? nameOf(l.childId) : t("rewards.family")) + " · " + esc(U.relTime(l.ts)) + "</div></div>" +
           '<div class="pts-cell">' + (l.self ? U.points(l.self) : "") +
@@ -187,7 +189,10 @@
       html += '<div class="section-title">' + esc(t("cat.other")) + "</div>" +
         '<div class="card flush">' + orphans.map(taskRow).join("") + "</div>";
     }
-    if (!s.tasks.length) html += U.emptyState(t("tasks.empty"), "📋");
+    if (!s.tasks.length) {
+      html += U.emptyState(t("tasks.empty"), "📋", t("empty.tasks"),
+        '<button class="btn small" data-act="p.taskNew">＋ ' + esc(t("tasks.add")) + "</button>");
+    }
     return html + "</div>";
   }
 
@@ -323,13 +328,15 @@
     html += '<div class="section-title">' + esc(t("rewards.family")) + "</div>" +
       '<div class="card flush">' + (family.length
         ? family.map(function (r) { return rewardRow(r, gp); }).join("")
-        : U.emptyState(t("rewards.empty"), "🎁")) + "</div>" +
+        : U.emptyState(t("rewards.empty"), "🎁", t("empty.rewards"),
+            '<button class="btn small" data-act="p.rewardNew">＋ ' + esc(t("rewards.add")) + "</button>")) + "</div>" +
       '<p class="hint">' + esc(t("rewards.familyHint")) + "</p>";
 
     html += '<div class="section-title">' + esc(t("rewards.child")) + "</div>" +
       '<div class="card flush">' + (kidPrizes.length
         ? kidPrizes.map(function (r) { return rewardRow(r, gp); }).join("")
-        : U.emptyState(t("rewards.empty"), "🎁")) + "</div>" +
+        : U.emptyState(t("rewards.empty"), "🎁", t("empty.rewards"),
+            '<button class="btn small" data-act="p.rewardNew">＋ ' + esc(t("rewards.add")) + "</button>")) + "</div>" +
       '<p class="hint">' + esc(t("rewards.childHint")) + "</p>";
 
     html += redemptionHistory(8);
@@ -386,7 +393,7 @@
               (r.note ? " · " + U.trHtml(r, "note") : "") +
               (r.childId ? " · " + esc(nameOf(r.childId)) : "") + "</span></div>";
           }).join("")
-        : '<p class="muted">' + esc(t("common.empty")) + "</p>") + "</div>";
+        : U.emptyState(t("common.empty"), "🎁", t("empty.redemptions"))) + "</div>";
   }
 
   var rewardDraft = null;
@@ -465,14 +472,16 @@
       '<button class="btn small" data-act="p.childNew">＋ ' + esc(t("kids.add")) + "</button></div>";
     html += s.children.length
       ? '<div class="card flush"><ul class="list">' + s.children.map(function (c) {
-          return '<li class="tappable" data-act="p.openChild" data-id="' + c.id + '">' +
-            U.avatar(c.avatar, 44) +
+          return '<li class="tappable kid-row" data-act="p.openChild" data-id="' + c.id +
+            '" style="--kid:' + S.childColor(c) + '">' +
+            U.childAvatar(c, 44) +
             '<div class="grow"><div class="title">' + U.name(c) + "</div>" +
             '<div class="sub">' + esc(t("kids.week")) + " " + U.points(S.weekEarned(c.id)) +
             " · " + esc(t("lang." + (c.lang || S.get().settings.lang))) + "</div></div>" +
-            '<strong class="score" style="font-size:1.15rem">' + S.balance(c.id) + "</strong></li>";
+            U.scoreEl("kids:" + c.id, S.balance(c.id), { style: "font-size:1.15rem" }) + "</li>";
         }).join("") + "</ul></div>"
-      : U.emptyState(t("common.empty"), "🧒");
+      : U.emptyState(t("common.empty"), "🧒", t("empty.kids"),
+          '<button class="btn small" data-act="p.childNew">＋ ' + esc(t("kids.add")) + "</button>");
     return html + "</div>";
   }
 
@@ -484,9 +493,9 @@
 
     var html = '<div class="wrap">' +
       '<button class="btn ghost small mb" data-act="p.backKids">← ' + esc(t("common.back")) + "</button>" +
-      '<div class="card center">' + U.avatar(c.avatar, 76) +
+      '<div class="card center kid-edge" style="--kid:' + S.childColor(c) + '">' + U.childAvatar(c, 76) +
         "<h1 style=\"margin-top:8px\">" + U.name(c) + "</h1>" +
-        '<div class="score" style="font-size:2.4rem">' + S.balance(c.id) + "</div>" +
+        U.scoreEl("child:" + c.id, S.balance(c.id), { style: "font-size:2.6rem" }) +
         '<small>' + esc(t("kids.balance")) + " · " + esc(t("common.rank")) + " " + rank + "</small>" +
         '<div class="row gap mt" style="justify-content:center">' +
           '<button class="btn good small" data-act="p.adjust" data-id="' + c.id + '" data-sign="1">＋ ' + esc(t("common.points")) + "</button>" +
@@ -514,7 +523,7 @@
               '<div class="pts-cell">' + U.points(l.self) +
               (l.group ? "<small>" + esc(t("tasks.groupPts")) + " " + U.points(l.group) + "</small>" : "") + "</div></li>";
           }).join("") + "</ul>"
-        : U.emptyState(t("kids.noHistory"), "📈")) + "</div>";
+        : U.emptyState(t("kids.noHistory"), "📈", t("empty.history"))) + "</div>";
 
     html += '<button class="btn danger block mt" data-act="p.childDelete" data-id="' + c.id + '">' +
       esc(t("common.remove")) + " " + U.name(c) + "</button>";
@@ -538,7 +547,7 @@
                 '<button class="icon-btn" data-act="p.itemRemove" data-id="' + child.id + '" data-field="' + field +
                   '" data-item="' + it.id + '">🗑️</button></li>';
             }).join("") + "</ul>"
-          : '<p class="muted">' + esc(t("common.empty")) + "</p>") +
+          : U.emptyState(t("common.empty"), "✏️", t("empty.list"))) +
         '<form data-act="p.itemAdd" data-id="' + child.id + '" data-field="' + field + '" class="row tight nowrap mt">' +
           '<input type="text" class="grow" name="text" placeholder="' + esc(addLabel) + '">' +
           '<button class="btn small" type="submit">＋</button>' +
@@ -549,6 +558,9 @@
   function childEditor(child) {
     var isNew = !child;
     var c = child || { id: "", name: "", avatar: nextFreeAvatar(), birthday: "", pin: null };
+    /* Open on the colour the child is actually wearing — the one a parent
+       picked before, or the one the app worked out for them. */
+    var startColor = c.color || (child ? S.childColor(child) : nextFreeColor());
     editingNameLang = global.I18N.lang;
     editingNames = S.clone(c.names || {});
     if (c.name && !editingNames[editingNameLang] && !Object.keys(editingNames).length) {
@@ -573,18 +585,28 @@
           langChips(c.lang || S.get().settings.lang, "p.childLang") + "</div>" +
         '<div class="field"><span class="field-label">' + esc(t("common.avatar")) + "</span>" +
           U.avatarPicker(global.AVATARS.kids, c.avatar, "p.childAvatar") + "</div>" +
+        '<div class="field"><span class="field-label">' + esc(t("kids.colour")) + "</span>" +
+          U.colorPicker(startColor, "p.childColor") +
+          '<div class="hint">' + esc(t("kids.colourHint")) + "</div></div>" +
         '<button class="btn block" type="submit">' + esc(t("common.save")) + "</button>" +
       "</form>");
     editingAvatar = c.avatar;
+    editingColor = c.color || "";
     editingLang = c.lang || S.get().settings.lang;
   }
   var editingNames = {}, editingNameLang = "en";
   var editingAvatar = "k1";
+  var editingColor = "";
   var editingLang = "en";
   function nextFreeAvatar() {
     var used = S.get().children.map(function (c) { return c.avatar; });
     var free = global.AVATARS.kids.filter(function (a) { return used.indexOf(a.id) === -1; })[0];
     return free ? free.id : "k1";
+  }
+  function nextFreeColor() {
+    var used = S.get().children.map(function (c) { return S.childColor(c); });
+    var free = global.AVATARS.tones.filter(function (tone) { return used.indexOf(tone.hex) === -1; })[0];
+    return free ? free.id : global.AVATARS.tones[0].id;
   }
 
   /* ================= approvals ================= */
@@ -592,7 +614,7 @@
   function approvalsTab() {
     var pending = S.pendingClaims();
     var html = '<div class="wrap"><h1>' + esc(t("appr.title")) + "</h1>";
-    if (!pending.length) return html + U.emptyState(t("appr.empty"), "✅") + "</div>";
+    if (!pending.length) return html + U.emptyState(t("appr.empty"), "✅", t("empty.approvals")) + "</div>";
 
     html += '<div class="card flush"><ul class="list">' + pending.map(function (cl) {
       var c = S.child(cl.childId);
@@ -608,7 +630,7 @@
         : (item.scope !== "group" ? U.points(item.onDoneSelf) : "") +
           (item.scope !== "personal" ? " <small>" + esc(t("tasks.groupPts")) + "</small> " + U.points(item.onDoneGroup) : "");
 
-      return "<li>" + U.avatar(c.avatar, 40) +
+      return "<li>" + U.childAvatar(c, 40) +
         '<div class="grow"><div class="title">' + (isReward ? (item.icon || "🎁") + " " : "") + U.keyedTitleHtml(item) + "</div>" +
         '<div class="sub" title="' + esc(t("appr.claimedAt", { when: U.fmtDateTime(cl.ts) })) + '">' +
           U.name(c) + " · " +
@@ -822,7 +844,7 @@
         esc(d.outcome === "done" ? t("tasks.markDone") : t("tasks.markMissed")) + "</p>" +
       '<div class="kid-grid">' + kids.map(function (c) {
         return '<button class="kid-card" data-act="p.awardPick" data-id="' + c.id + '">' +
-          U.avatar(c.avatar, 52) + '<span class="nm">' + U.name(c) + "</span></button>";
+          U.childAvatar(c, 52) + '<span class="nm">' + U.name(c) + "</span></button>";
       }).join("") + "</div>");
   });
   U.on("p.awardPick", function (d) {
@@ -836,6 +858,8 @@
     U.toast(t("tasks.awarded", { name: S.nameOf(c), sign: "", n: U.signed(entry.self) }),
       entry.self >= 0 ? "good" : "bad");
     global.App.refresh();
+    /* Only when points were actually gained — a deduction is not a party. */
+    if (S.num(entry.self) > 0 || S.num(entry.group) > 0) U.celebrate({ color: S.childColor(c) });
   }
 
   U.on("p.adjust", function (d) {
@@ -870,6 +894,14 @@
       b.classList.toggle("sel", b.dataset.avatar === d.avatar);
     });
   });
+  U.on("p.childColor", function (d) {
+    editingColor = d.tone;
+    U.els(".modal-body .tone").forEach(function (b) {
+      var on = b.dataset.tone === d.tone;
+      b.classList.toggle("sel", on);
+      b.setAttribute("aria-pressed", on);
+    });
+  });
   U.on("p.childSave", function (d, form) {
     var typed = U.el("#cnName", form).value.trim();
     if (typed) editingNames[editingNameLang] = typed; else delete editingNames[editingNameLang];
@@ -882,12 +914,12 @@
     var clearPin = U.el("#cnPinClear", form);
     if (d.id) {
       S.updateChild(d.id, { name: name, names: S.clone(editingNames), birthday: birthday,
-                            avatar: editingAvatar, lang: editingLang });
+                            avatar: editingAvatar, color: editingColor, lang: editingLang });
       if (clearPin && clearPin.checked) S.setChildPin(d.id, null);
       else if (pin) S.setChildPin(d.id, pin);
     } else {
       S.addChild({ name: name, names: S.clone(editingNames), birthday: birthday,
-                   avatar: editingAvatar, pin: pin, lang: editingLang }, me().id);
+                   avatar: editingAvatar, color: editingColor, pin: pin, lang: editingLang }, me().id);
     }
     U.closeModal();
     U.toast(t("common.saved"), "good");
@@ -983,7 +1015,7 @@
         var left = S.balance(c.id) - S.num(r.cost);
         return '<button class="kid-card" data-act="p.giveRewardTo" data-reward="' + r.id + '" data-id="' + c.id + '"' +
           (left < 0 ? " disabled" : "") + ">" +
-          U.avatar(c.avatar, 52) + '<span class="nm">' + U.name(c) + "</span>" +
+          U.childAvatar(c, 52) + '<span class="nm">' + U.name(c) + "</span>" +
           '<span class="tag">' + (left < 0 ? esc(t("rewards.short", { n: U.iso(-left) }))
                                            : esc(t("rewards.balanceAfter", { n: U.iso(left) }))) + "</span></button>";
       }).join("") + "</div>");
@@ -1013,7 +1045,7 @@
     if (!top) return U.toast(t("common.empty"), "bad");
     var wishes = top.child.outings || [];
     U.modal(U.keyedTitle(r),
-      '<div class="center">' + U.avatar(top.child.avatar, 64) + "</div>" +
+      '<div class="center">' + U.childAvatar(top.child, 64) + "</div>" +
       '<p class="lead center">' + esc(t("rewards.chooser", { name: S.nameOf(top.child) })) + "</p>" +
       '<form data-act="p.redeemSave" data-reward="' + r.id + '" data-id="' + top.child.id + '">' +
         (wishes.length
@@ -1036,13 +1068,17 @@
     if (!decided && approve) return U.toast(t("rewards.tooExpensive", { name: "" }).trim(), "bad");
     U.toast(approve ? t("appr.approved") : t("appr.rejected"), approve ? "good" : "");
     global.App.refresh();
+    if (approve) {
+      var kid = decided && decided.childId ? S.child(decided.childId) : null;
+      U.celebrate(kid ? { color: S.childColor(kid) } : {});
+    }
   });
 
   U.on("p.movie", function () {
     var winner = S.weekWinner();
     if (!winner) return U.toast(t("movie.noWinner"), "bad");
     U.modal(weeklyPrize(),
-      '<div class="center">' + U.avatar(winner.child.avatar, 64) + "</div>" +
+      '<div class="center">' + U.childAvatar(winner.child, 64) + "</div>" +
       '<p class="lead center">' + U.name(winner.child) + " · " + esc(weeklyPrize()) + "</p>" +
       '<form data-act="p.movieSave" data-id="' + winner.child.id + '">' +
         '<div class="field"><label for="mvName">' + esc(t("movie.movieName")) + "</label>" +

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Family Points">
+  <defs>
+    <linearGradient id="fpBg" gradientUnits="userSpaceOnUse" x1="40" y1="24" x2="472" y2="500">
+      <stop offset="0" stop-color="#7c5cff"/>
+      <stop offset=".55" stop-color="#a855f7"/>
+      <stop offset="1" stop-color="#ff8a3d"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="116" fill="url(#fpBg)"/>
+
+  <!-- The two grown-ups stand behind, softened, so the children read first. -->
+  <g fill="#ffffff" opacity=".55">
+    <circle cx="144" cy="158" r="44"/>
+    <path d="M88 396 L88 288 A56 56 0 0 1 200 288 L200 396 Z"/>
+    <circle cx="368" cy="158" r="44"/>
+    <path d="M312 396 L312 288 A56 56 0 0 1 424 288 L424 396 Z"/>
+  </g>
+
+  <!-- The children in front. Their outline is the background itself, which cuts
+       a clean gap where they overlap instead of muddying into one shape. -->
+  <g fill="#ffffff" stroke="url(#fpBg)" stroke-width="16" stroke-linejoin="round">
+    <circle cx="208" cy="240" r="32"/>
+    <path d="M166 396 L166 340 A42 42 0 0 1 250 340 L250 396 Z"/>
+    <circle cx="304" cy="240" r="32"/>
+    <path d="M262 396 L262 340 A42 42 0 0 1 346 340 L346 396 Z"/>
+  </g>
+</svg>

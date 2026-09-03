@@ -4,7 +4,7 @@
 
   var t = function (k, p) { return global.I18N.t(k, p); };
   var esc = function (s) { return global.UI.esc(s); };
-  var U = global.UI;
+  var U = global.UI, S = global.Store;
 
   var STEPS = 4;
   var draft = null;
@@ -276,7 +276,7 @@
     var s = global.Store.get();
     return '<div class="wrap">' +
       '<div class="card center" style="padding-block:26px">' +
-        '<div class="brand-mark" style="margin:0 auto 10px;width:52px;height:52px;font-size:1.5rem">👪</div>' +
+        U.brandMark(52, "center-mark") +
         "<h1>" + U.familyName() + "</h1>" +
         '<p class="lead">' + esc(t("app.tagline")) + "</p>" +
       "</div>" +
@@ -313,8 +313,9 @@
     if (!s.children.length) return U.emptyState(t("auth.noKids"), "🧒");
     return '<p class="lead">' + esc(t("auth.pickChild")) + "</p>" +
       '<div class="kid-grid">' + s.children.map(function (c) {
-        return '<button class="kid-card" data-act="login.child" data-id="' + c.id + '">' +
-          U.avatar(c.avatar, 56) + '<span class="nm">' + U.name(c) + "</span>" +
+        return '<button class="kid-card" data-act="login.child" data-id="' + c.id +
+          '" style="--kid:' + S.childColor(c) + '">' +
+          U.childAvatar(c, 56) + '<span class="nm">' + U.name(c) + "</span>" +
           (c.pin ? '<span class="tag">🔒</span>' : "") + "</button>";
       }).join("") + "</div>";
   }
@@ -349,7 +350,7 @@
     U.modal(global.Store.nameOf(c),
       '<form data-act="login.pin">' +
         '<p class="lead center">' + esc(t("auth.enterPin")) + "</p>" +
-        '<div class="center">' + U.avatar(c.avatar, 64) + "</div>" +
+        '<div class="center">' + U.childAvatar(c, 64) + "</div>" +
         '<div class="field"><input id="pinBox" type="tel" inputmode="numeric" maxlength="4" class="pin-input" autocomplete="off"></div>' +
         '<button class="btn block" type="submit">' + esc(t("common.login")) + "</button>" +
       "</form>",

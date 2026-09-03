@@ -25,10 +25,13 @@
     var recent = S.get().ledger.filter(function (l) { return l.childId === c.id; }).slice().reverse().slice(0, 8);
 
     var html = '<div class="wrap">' +
-      '<div class="card hero center">' +
-        U.avatar(c.avatar, 84) +
+      '<div class="card hero kid center" style="--kid:' + S.childColor(c) + '">' +
+        U.childAvatar(c, 84) +
         "<h1 style=\"margin-top:10px\">" + U.name(c) + "</h1>" +
-        '<div class="score" style="font-size:2.8rem">' + S.balance(c.id) + "</div>" +
+        /* The one number the child came to see. `cheer` means that when it has
+           gone up since they last looked — a parent approved something while
+           the app was shut — arriving is a small celebration. */
+        U.scoreEl("me:" + c.id, S.balance(c.id), { cls: "hero", cheer: true }) +
         '<small>' + esc(t("common.points")) + "</small>" +
         '<div class="row gap mt" style="justify-content:center">' +
           '<span class="tag" style="background:rgba(255,255,255,.22);color:#fff">' +
@@ -64,7 +67,7 @@
               '<div class="sub">' + esc(U.fmtDateTime(l.ts)) + "</div></div>" +
               U.points(l.self) + "</li>";
           }).join("") + "</ul>"
-        : U.emptyState(t("kids.noHistory"), "📈")) + "</div>";
+        : U.emptyState(t("kids.noHistory"), "📈", t("empty.history"))) + "</div>";
 
     return html + "</div>";
   }
@@ -75,7 +78,7 @@
     var s = S.get();
     var mine = S.tasksForChild(c.id);
     var html = '<div class="wrap"><h1>' + esc(t("tasks.mine")) + "</h1>";
-    if (!mine.length) return html + U.emptyState(t("tasks.noneForChild"), "📋") + "</div>";
+    if (!mine.length) return html + U.emptyState(t("tasks.noneForChild"), "📋", t("empty.tasksChild")) + "</div>";
 
     s.categories.forEach(function (cat) {
       var list = mine.filter(function (task) { return task.categoryId === cat.id; });
@@ -105,7 +108,7 @@
     if (task.scope !== "group") reward.push(U.points(task.onDoneSelf));
     if (task.scope !== "personal") reward.push('<small>' + esc(t("nav.group")) + "</small> " + U.points(task.onDoneGroup));
 
-    return '<div class="task-row">' +
+    return '<div class="task-row" data-task-row="' + task.id + '">' +
       '<div class="grow"><div class="title">' + U.taskTitleHtml(task) + "</div>" +
         '<div class="sub">' + reward.join(" · ") +
         (S.num(task.onMissSelf) < 0 ? " · <small>" + esc(t("tasks.onMiss")) + " " + U.points(task.onMissSelf) + "</small>" : "") +
@@ -124,19 +127,19 @@
     var gp = S.goalProgress();
 
     var html = '<div class="wrap"><h1>' + esc(t("rewards.title")) + "</h1>" +
-      '<div class="card hero center">' +
-        '<div class="score" style="font-size:2.4rem">' + balance + "</div>" +
+      '<div class="card hero kid center" style="--kid:' + S.childColor(c) + '">' +
+        U.scoreEl("rewards:" + c.id, balance, { cls: "hero" }) +
         '<small>' + esc(t("common.points")) + "</small></div>";
 
     html += '<div class="section-title">' + esc(t("rewards.child")) + "</div>";
     html += mine.length
       ? '<div class="card flush">' + mine.map(function (r) { return rewardRow(c, r, balance); }).join("") + "</div>"
-      : U.emptyState(t("rewards.noneForChild"), "🎁");
+      : U.emptyState(t("rewards.noneForChild"), "🎁", t("empty.rewardsChild"));
 
     html += '<div class="section-title">' + esc(t("rewards.family")) + "</div>" +
       '<div class="card">' +
         '<div class="row between nowrap"><strong>' + esc(t("dash.groupBank")) + "</strong>" +
-        '<span class="score" style="font-size:1.2rem">' + gp.total + "</span></div>" +
+        U.scoreEl("bank", gp.total, { style: "font-size:1.2rem" }) + "</div>" +
         U.progressBar(gp.pct) +
         '<small>' + esc(gp.next
           ? t("rewards.nextGoal", { name: U.keyedTitle(gp.next) }) + " · " + t("rewards.short", { n: U.iso(gp.missing) })
@@ -189,7 +192,7 @@
     var html = '<div class="wrap">' +
       '<div class="card hero">' +
         '<div class="eyebrow">' + esc(t("dash.groupBank")) + "</div>" +
-        '<div class="row between nowrap"><div class="score">' + gp.total + "</div>" +
+        '<div class="row between nowrap">' + U.scoreEl("bankTop", gp.total) +
         '<div class="tag" style="background:rgba(255,255,255,.2);color:#fff">' + esc(t("dash.goal", { n: U.iso(gp.goal) })) + "</div></div>" +
         U.progressBar(gp.pct) +
         (gp.reached
@@ -206,7 +209,7 @@
             return '<div class="kv"><span class="k">' + esc(U.fmtDate(m.ts)) + "</span><span>🍿 " +
               esc(m.movie) + " · " + esc(nameOf(m.winnerId)) + "</span></div>";
           }).join("")
-        : '<p class="muted">' + esc(t("movie.empty")) + "</p>") + "</div>";
+        : U.emptyState(t("movie.empty"), "🍿", t("empty.movie"))) + "</div>";
 
     html += '<div class="section-title">' + esc(t("rewards.history")) + "</div>" +
       '<div class="card">' + (s.redemptions.length
@@ -216,7 +219,7 @@
               (r.note ? " · " + U.trHtml(r, "note") : "") +
               (r.childId ? " · " + esc(nameOf(r.childId)) : "") + "</span></div>";
           }).join("")
-        : '<p class="muted">' + esc(t("common.empty")) + "</p>") + "</div>";
+        : U.emptyState(t("common.empty"), "🎁", t("empty.redemptions"))) + "</div>";
 
     return html + "</div>";
   }
@@ -250,7 +253,7 @@
                 '<div class="grow"><div class="title" style="white-space:pre-wrap">' + U.trHtml(it, "text") + "</div>" +
                 '<div class="sub">' + esc(U.fmtDate(it.ts)) + "</div></div></li>";
             }).join("") + "</ul>"
-          : '<p class="muted">' + esc(t("common.empty")) + "</p>") +
+          : U.emptyState(t("common.empty"), "✏️", t("empty.list"))) +
         '<div class="hint">' + esc(t("child.readOnly")) + "</div>" +
       "</div>";
   }
@@ -262,6 +265,9 @@
     S.claimTask(c.id, d.id);
     U.toast(t("tasks.claimSent"), "good");
     global.App.refresh();
+    /* No confetti here: nothing has been earned yet, only reported. The row
+       lights up instead, so the child can see which one they just sent. */
+    U.flash('[data-task-row="' + d.id + '"]');
   });
   U.on("c.itemAdd", function (d, form) {
     var input = form.querySelector('[name="text"]');

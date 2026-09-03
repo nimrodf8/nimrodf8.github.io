@@ -33,7 +33,12 @@ node build.js --artifact   # artifact.html — page content without the <html>
 ```
 
 Both are generated; `index.html` plus `assets/` and `js/` stay the source of
-truth, so rebuild after changing anything there. The first visit walks a parent through a four-step setup:
+truth, so rebuild after changing anything there. The one-file builds inline the
+icons as data URIs but drop the `@font-face` rules and the manifest link: a
+single file has no siblings to load a font or an icon set from, and inlining
+64 KB of font as base64 would nearly double a build whose whole point is to be
+portable. They fall back to the system typeface, exactly as the real site does
+before the font arrives. The first visit walks a parent through a four-step setup:
 
 1. Family name and language
 2. The first parent account (username + password)
@@ -260,14 +265,19 @@ points live somewhere other than your own device.
 ```
 family-points/
 ├── index.html          page shell — the screens are rendered from JS
-├── assets/styles.css   one stylesheet: light + dark, LTR + RTL
+├── site.webmanifest    name, colours and icons for a home-screen install
+├── assets/
+│   ├── styles.css      one stylesheet: light + dark, LTR + RTL
+│   ├── icon.svg        the app's mark, drawn — favicon and manifest icon
+│   ├── icon-*.png      the same mark for home screens that want a bitmap
+│   └── fonts/          Rubik, self-hosted (see Typeface below)
 └── js/
-    ├── i18n.js         261 interface strings × en / nl / he
+    ├── i18n.js         interface strings × en / nl / he
     ├── translate.js    on-device translation of what the family writes
     ├── sync.js         optional sync across devices, and the merge rules
-    ├── avatars.js      emoji characters on coloured discs (no image files)
+    ├── avatars.js      emoji characters on coloured discs, and the child palette
     ├── sha256.js       hashing for passwords and PINs
-    ├── store.js        data model, ledger, balances, weeks, birthdays
+    ├── store.js        data model, ledger, balances, weeks, birthdays, colours
     ├── ui.js           shared rendering helpers and the delegated click router
     ├── setup.js        first-run wizard and sign-in
     ├── parent.js       the admin screens
@@ -279,6 +289,46 @@ server/
 
 Scripts are plain classic `<script>` tags in dependency order, so the app also
 runs straight from `file://` without a server.
+
+### A colour of one's own
+
+Every child carries one colour: the ring around their character, the card at the
+top of their own page, the bar on their row in the standings. It is how a child
+too young to read a name finds their row.
+
+A parent can pick a colour from ten in the child's profile. When nobody has
+picked, one is worked out from the order children were added — never stored, so
+nothing has to be migrated onto families that already exist, and every device
+computes the same answer from the same data, so one child is never two colours
+on two phones. Colours a parent chose are taken out of the pool first, so an
+automatic colour never lands on a deliberate one.
+
+The gradient on a child's card is mixed towards a dark base rather than used
+neat: at 68% every colour in the palette still carries white text at 4.5:1 or
+better, where amber used neat would be 2.9:1.
+
+### Typeface
+
+Rubik, served from this repository — three files, about 64 KB, one per script.
+Google publishes it as a variable font, so a single file per script covers every
+weight the app uses.
+
+It is self-hosted rather than linked from `fonts.googleapis.com` for three
+reasons: the family's phones make no request to anyone else, a home screen that
+has opened the app once keeps its typeface with no network at all, and the app
+holds to its rule that it talks only to its own origin. `font-display: swap`
+plus the system stack behind it in `styles.css` means text is readable from the
+first paint and nothing about the layout depends on the font arriving.
+
+Rubik is under the SIL Open Font License 1.1; the licence travels with it in
+`assets/fonts/OFL.txt`.
+
+### Motion
+
+Balances count up to a new value rather than blinking to it, and points actually
+earned are worth a few seconds of paper. Both are held to
+`prefers-reduced-motion`: a reader who has asked for less motion gets the new
+number immediately and no confetti at all.
 
 ---
 

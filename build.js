@@ -31,8 +31,28 @@ const bundled = scripts.map(src => {
   return "/* ==== " + src + " ==== */\n" + code;
 }).join("\n");
 
+/* Icons come in as data URIs so the one-file build still has a face on a home
+   screen. The manifest cannot: it points at siblings by URL, and a single file
+   has no siblings, so it is dropped rather than shipped broken. */
+const dataUri = (rel) => {
+  const abs = path.join(root, rel);
+  const type = rel.endsWith(".svg") ? "image/svg+xml" : "image/png";
+  const body = rel.endsWith(".svg")
+    ? encodeURIComponent(fs.readFileSync(abs, "utf8").replace(/\s+/g, " ").trim())
+    : fs.readFileSync(abs).toString("base64");
+  return "data:" + type + (rel.endsWith(".svg") ? "," : ";base64,") + body;
+};
+
+/* The @font-face rules point at sibling files. A single file has no siblings,
+   and inlining 64 KB of font as base64 would nearly double it for a build whose
+   whole purpose is to be portable — so the one-file version falls back to the
+   system stack, exactly as the real site does before the font arrives. */
+const cssNoFonts = css.replace(/@font-face\s*\{[^}]*\}/g, "").replace(/\n{3,}/g, "\n\n");
+
 let out = html
-  .replace('<link rel="stylesheet" href="assets/styles.css">', "<style>\n" + css + "\n</style>")
+  .replace('<link rel="stylesheet" href="assets/styles.css">', "<style>\n" + cssNoFonts + "\n</style>")
+  .replace(/\n?\s*<link rel="manifest"[^>]*>/g, "")
+  .replace(/href="(assets\/[^"]+)"/g, (_m, rel) => 'href="' + dataUri(rel) + '"')
   .replace(/<script src="[^"]+"><\/script>\n?/g, "")
   .replace("</body>", "<script>\n" + bundled + "\n</script>\n</body>");
 
@@ -48,7 +68,8 @@ if (artifactMode) {
   }
 }
 
-if (out.includes("<script src=") || out.includes('href="assets/')) {
+if (out.includes("<script src=") || out.includes('href="assets/') ||
+    out.includes("url(fonts/")) {
   throw new Error("a reference to an external file survived the bundle");
 }
 

@@ -56,6 +56,9 @@
       : global.ChildView.render(view.tab);
     U.el("#tabs").innerHTML = tabs ? tabBar(tabs) : "";
     document.body.classList.toggle("no-tabs", !tabs);
+    /* Last, so it runs against the markup that just landed: any balance that
+       moved since this reader last saw it counts up to its new value. */
+    U.animateScores();
   }
 
   function header(screen) {
@@ -66,7 +69,7 @@
       if (p) who = U.avatar(p.avatar, 34);
     } else if (screen === "child") {
       var c = S.child(session().id);
-      if (c) who = U.avatar(c.avatar, 34);
+      if (c) who = U.childAvatar(c, 34);
     }
     var title = (s && S.familyName()) || t("app.name");
     var sub = screen === "parent" ? S.nameOf(S.parent(session().id))
@@ -74,7 +77,7 @@
             : t("app.tagline");
 
     return '<div class="wrap">' +
-      '<div class="brand-mark">👪</div>' +
+      U.brandMark(38) +
       '<div class="bar-title"><strong>' + esc(title) + "</strong><small>" + esc(sub || "") + "</small></div>" +
       '<div class="bar-actions">' +
         (global.Sync.connected()
@@ -105,6 +108,7 @@
 
   U.on("app.tab", function (d) { go({ tab: d.tab, params: {} }); });
   U.on("app.logout", function () {
+    U.forgetScores();
     S.clearSession();
     go({ screen: "login", tab: "dashboard", params: {} });
   });

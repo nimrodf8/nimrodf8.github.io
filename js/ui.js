@@ -34,10 +34,57 @@
     if (fn) fn(form.dataset, form, ev);
   });
 
-  function avatar(id, size, extraClass) {
+  /* The app's own mark, drawn rather than borrowed from the emoji font, so it
+     is the same family on every phone and matches the icon on the home screen.
+     Sized in ems off the box it sits in. */
+  var markSeq = 0;
+  function brandMark(size, extraClass) {
+    var g = "bm" + (++markSeq);
+    return '<span class="brand-mark ' + (extraClass || "") + '" style="--bm:' + (size || 38) +
+      'px" aria-hidden="true">' +
+      '<svg viewBox="0 0 512 512" focusable="false">' +
+        '<defs><linearGradient id="' + g + '" gradientUnits="userSpaceOnUse" x1="40" y1="24" x2="472" y2="500">' +
+          '<stop offset="0" stop-color="#7c5cff"/><stop offset=".55" stop-color="#a855f7"/>' +
+          '<stop offset="1" stop-color="#ff8a3d"/></linearGradient></defs>' +
+        '<rect width="512" height="512" rx="116" fill="url(#' + g + ')"/>' +
+        '<g fill="#fff" opacity=".55">' +
+          '<circle cx="144" cy="158" r="44"/>' +
+          '<path d="M88 396 L88 288 A56 56 0 0 1 200 288 L200 396 Z"/>' +
+          '<circle cx="368" cy="158" r="44"/>' +
+          '<path d="M312 396 L312 288 A56 56 0 0 1 424 288 L424 396 Z"/>' +
+        "</g>" +
+        '<g fill="#fff" stroke="url(#' + g + ')" stroke-width="16" stroke-linejoin="round">' +
+          '<circle cx="208" cy="240" r="32"/>' +
+          '<path d="M166 396 L166 340 A42 42 0 0 1 250 340 L250 396 Z"/>' +
+          '<circle cx="304" cy="240" r="32"/>' +
+          '<path d="M262 396 L262 340 A42 42 0 0 1 346 340 L346 396 Z"/>' +
+        "</g>" +
+      "</svg></span>";
+  }
+
+  /* `color` overrides the disc the character normally comes with — that is how
+     a child's own colour follows them around the app. */
+  function avatar(id, size, extraClass, color) {
     var a = global.AVATARS.byId(id);
-    return '<span class="avatar ' + (extraClass || "") + '" style="--av:' + a.color +
+    return '<span class="avatar ' + (extraClass || "") + '" style="--av:' + (color || a.color) +
       ';--avs:' + (size || 44) + 'px">' + a.emoji + "</span>";
+  }
+  function childAvatar(child, size, extraClass) {
+    if (!child) return "";
+    return avatar(child.avatar, size, extraClass, global.Store.childColor(child));
+  }
+
+  /* A row of swatches. Deliberately not an <input type=color>: the point is a
+     small set that stays legible on both themes, not any colour at all. */
+  function colorPicker(selected, actionName) {
+    var current = global.AVATARS.toneHex(selected);
+    return '<div class="tone-row">' + global.AVATARS.tones.map(function (tone) {
+      var on = tone.hex === current;
+      return '<button type="button" class="tone' + (on ? " sel" : "") +
+        '" data-act="' + actionName + '" data-tone="' + tone.id +
+        '" style="--tone:' + tone.hex + '" aria-pressed="' + on +
+        '" title="' + esc(t(tone.key)) + '" aria-label="' + esc(t(tone.key)) + '"></button>';
+    }).join("") + "</div>";
   }
 
   function avatarPicker(list, selectedId, actionName) {
@@ -231,8 +278,118 @@
     handlers["confirm.yes"] = function () { closeModal(); onYes(); };
   }
 
-  function emptyState(msg, icon) {
-    return '<div class="empty"><span class="empty-ic">' + (icon || "🌱") + "</span><p>" + esc(msg) + "</p></div>";
+  /* ---- a balance that moves when it changes ----
+     Every big number on screen is tagged with a key and its value. After a
+     re-render, `animateScores` counts each one from where the reader last saw
+     it to where it is now, so an approval upstairs shows up down here as the
+     number climbing rather than as different text on a page that blinked. */
+  function scoreEl(key, value, opts) {
+    opts = opts || {};
+    return '<span class="score' + (opts.cls ? " " + opts.cls : "") + '"' +
+      (opts.style ? ' style="' + opts.style + '"' : "") +
+      ' data-score="' + esc(key) + '" data-value="' + global.Store.num(value) + '"' +
+      (opts.cheer ? ' data-cheer="1"' : "") + ">" + global.Store.num(value) + "</span>";
+  }
+
+  var lastScores = {};
+  var calm = null;
+  function reducedMotion() {
+    if (calm === null) {
+      try { calm = global.matchMedia("(prefers-reduced-motion: reduce)").matches; }
+      catch (e) { calm = false; }
+    }
+    return calm;
+  }
+
+  function animateScores() {
+    els("[data-score]").forEach(function (node) {
+      var key = node.getAttribute("data-score");
+      var to = Number(node.getAttribute("data-value")) || 0;
+      var from = lastScores[key];
+      lastScores[key] = to;
+      if (from === undefined || from === to) return;
+
+      node.classList.add(to > from ? "up" : "down");
+      setTimeout(function () { node.classList.remove("up", "down"); }, 900);
+      if (node.getAttribute("data-cheer") && to > from) celebrate();
+      if (reducedMotion()) return;
+      countTo(node, from, to);
+    });
+  }
+
+  function countTo(node, from, to) {
+    var span = 620, started = null;
+    if (node._count) global.cancelAnimationFrame(node._count);
+    function frame(ts) {
+      if (started === null) started = ts;
+      var p = Math.min(1, (ts - started) / span);
+      var eased = 1 - Math.pow(1 - p, 3);
+      node.textContent = Math.round(from + (to - from) * eased);
+      if (p < 1) node._count = global.requestAnimationFrame(frame);
+      else { node.textContent = to; node._count = null; }
+    }
+    node._count = global.requestAnimationFrame(frame);
+  }
+
+  /* Forget a number so the next render treats it as first sight — used when
+     signing out, so the next person does not inherit someone else's total and
+     watch it "fall". */
+  function forgetScores() { lastScores = {}; }
+
+  /* ---- the moment something good happens ----
+     Paper, not a library: a couple of dozen divs that fall and are thrown away
+     again. Skipped entirely for anyone who asked for less motion. */
+  var CHEER = ["#ff8a3d", "#6b4dfb", "#16a06a", "#f0b429", "#e05580", "#3089d4"];
+  function celebrate(opts) {
+    if (reducedMotion()) return;
+    var host = el("#cheer");
+    if (!host) return;
+    opts = opts || {};
+    var n = opts.pieces || 26;
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < n; i++) {
+      var bit = document.createElement("i");
+      bit.className = "bit" + (i % 3 === 0 ? " round" : "");
+      bit.style.setProperty("--x", (Math.random() * 100).toFixed(2) + "vw");
+      bit.style.setProperty("--drift", (Math.random() * 120 - 60).toFixed(0) + "px");
+      bit.style.setProperty("--spin", (Math.random() * 720 - 360).toFixed(0) + "deg");
+      bit.style.setProperty("--delay", (Math.random() * 260).toFixed(0) + "ms");
+      bit.style.setProperty("--life", (1500 + Math.random() * 900).toFixed(0) + "ms");
+      /* When we know whose points moved, their colour leads — every other
+         piece — so the burst still says who it is for without going flat. */
+      bit.style.setProperty("--c", opts.color && i % 2 ? opts.color : CHEER[i % CHEER.length]);
+      frag.appendChild(bit);
+    }
+    host.appendChild(frag);
+    host.classList.add("on");
+    clearTimeout(host._sweep);
+    host._sweep = setTimeout(function () {
+      host.innerHTML = "";
+      host.classList.remove("on");
+    }, 2800);
+  }
+
+  /* Points at the thing that just changed. The screen has usually been
+     re-rendered by now, so this runs against the new node, not the one that
+     was clicked. */
+  function flash(selector) {
+    if (reducedMotion()) return;
+    var node = el(selector);
+    if (!node) return;
+    node.classList.remove("just");
+    void node.offsetWidth;      // restart the animation if it is still running
+    node.classList.add("just");
+    setTimeout(function () { node.classList.remove("just"); }, 1200);
+  }
+
+  /* An empty list is a place someone has not got to yet, so it says what would
+     fill it — and, where there is one, offers the button that does. */
+  function emptyState(msg, icon, hint, actionHtml) {
+    return '<div class="empty"><span class="empty-ic">' + (icon || "🌱") + "</span>" +
+      "<p>" + esc(msg) + "</p>" +
+      (hint ? '<p class="empty-hint">' + esc(hint) + "</p>" : "") +
+      (actionHtml ? '<div class="empty-act">' + actionHtml + "</div>" : "") +
+      "</div>";
   }
 
   function progressBar(pct) {
@@ -241,6 +398,9 @@
 
   global.UI = {
     esc: esc, el: el, els: els, on: on, avatar: avatar, avatarPicker: avatarPicker,
+    brandMark: brandMark, childAvatar: childAvatar, colorPicker: colorPicker,
+    scoreEl: scoreEl, animateScores: animateScores, forgetScores: forgetScores,
+    celebrate: celebrate, reducedMotion: reducedMotion, flash: flash,
     name: name, familyName: familyName, nameLangChips: nameLangChips,
     nameField: nameField, switchNameLang: switchNameLang,
     iso: iso, signed: signed,

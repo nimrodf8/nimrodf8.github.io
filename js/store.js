@@ -300,6 +300,7 @@
       id: uid("kid"),
       name: data.name,
       avatar: data.avatar || "k1",
+      color: data.color || "",
       names: data.names || {},
       lang: data.lang || state.settings.lang,
       birthday: data.birthday || "",
@@ -393,6 +394,36 @@
     return null;
   }
   function child(id) { return byId(state.children, id); }
+
+  /* The colour a child is known by. A parent can pick one; when nobody has,
+     it is worked out from the order the children were added — which every
+     device agrees on, so two phones never show the same child in two colours,
+     and no stored field has to be migrated onto families that already exist.
+     Colours a parent chose explicitly are taken out of the pool first, so an
+     automatic one never lands on a deliberate one. */
+  function childColor(c) {
+    var TONES = global.AVATARS.tones;
+    if (!c) return TONES[0].hex;
+    var chosen = global.AVATARS.toneHex(c.color);
+    if (chosen) return chosen;
+
+    var kids = state && state.children ? state.children : [];
+    var taken = kids.map(function (k) { return global.AVATARS.toneHex(k.color); })
+                    .filter(function (h) { return h; });
+    var pool = TONES.map(function (tone) { return tone.hex; })
+                    .filter(function (h) { return taken.indexOf(h) === -1; });
+    if (!pool.length) pool = TONES.map(function (tone) { return tone.hex; });
+
+    var auto = kids.filter(function (k) { return !global.AVATARS.toneHex(k.color); })
+      .slice().sort(function (a, b) {
+        return String(a.createdAt || "").localeCompare(String(b.createdAt || "")) ||
+               String(a.id).localeCompare(String(b.id));
+      });
+    var i = 0;
+    for (var n = 0; n < auto.length; n++) if (auto[n].id === c.id) { i = n; break; }
+    return pool[i % pool.length];
+  }
+
   function parent(id) { return byId(state.parents, id); }
   function task(id) { return byId(state.tasks, id); }
   function category(id) { return byId(state.categories, id); }
@@ -816,7 +847,7 @@
     setParentPassword: setParentPassword, updateParent: updateParent, parent: parent,
     addChild: addChild, removeChild: removeChild, updateChild: updateChild,
     setUserLang: setUserLang, addCategory: addCategory, authorLang: authorLang,
-    setChildPin: setChildPin, child: child,
+    setChildPin: setChildPin, child: child, childColor: childColor,
     saveTask: saveTask, deleteTask: deleteTask, tasksForChild: tasksForChild, task: task,
     saveReward: saveReward, deleteReward: deleteReward, reward: reward,
     rewardsFor: rewardsFor, familyRewards: familyRewards, defaultRewards: defaultRewards,
