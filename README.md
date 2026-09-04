@@ -323,6 +323,22 @@ first paint and nothing about the layout depends on the font arriving.
 Rubik is under the SIL Open Font License 1.1; the licence travels with it in
 `assets/fonts/OFL.txt`.
 
+### Why the home-screen icon opens in the browser
+
+The manifest asks for `display: browser` and the page deliberately does not set
+`apple-mobile-web-app-capable`. Both are load-bearing.
+
+A home-screen icon that opens in the browser shares the browser's storage. A
+standalone web app gets a storage container of its own — so switching an app to
+standalone silently cuts a device off from everything it had saved. The family
+document itself is safe on the server, but the id and secret needed to reach it
+live in that storage, so the device is simply locked out and looks reset.
+
+This was learned the hard way: standalone was turned on, a family member removed
+and re-added the icon to pick up the new artwork, and came back to an empty app.
+The full-screen look is not worth that. If it is ever wanted again, ship it
+together with a way to get back in that does not depend on browser storage.
+
 ### Motion
 
 Balances count up to a new value rather than blinking to it, and points actually

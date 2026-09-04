@@ -4,7 +4,7 @@
   "description": "Chores, points and family rewards.",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "browser",
   "orientation": "portrait",
   "background_color": "#f6f5fb",
   "theme_color": "#6b4dfb",
