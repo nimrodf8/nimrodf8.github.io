@@ -6035,7 +6035,12 @@ nav.tabs .badge {
 
     return '<div class="task-row' + (isOpen ? "" : " paused") + '">' +
       '<span class="rank-badge">' + (ready ? "✅" : isOpen ? "⏳" : d.status === "broken" ? "✂️" : "\u{1F4B0}") + "</span>" +
-      '<div class="grow"><div class="title">' + (type ? typeName(type) : esc(t("bank.deposits"))) + " · " +
+      /* The product may be gone — a parent can delete one, and the suggested
+         ladder replaces the lot. The deposit copied its own terms when it was
+         opened, so name it from those rather than falling back to a word that
+         says nothing. */
+      '<div class="grow"><div class="title">' +
+        (type ? typeName(type) : esc(termText(d.termDays))) + " · " +
         U.cash(d.amount, { plain: true, currency: cur }) + "</div>" +
         '<div class="sub">' + esc(t("bank.ratePct", { n: U.iso(d.ratePct) })) + " · " +
           esc(isOpen
