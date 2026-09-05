@@ -1124,7 +1124,7 @@
   }
   function depositById(id) { return byId(depositList(), id); }
 
-  function openDeposit(childId, typeId, amount, byParentId) {
+  function openDeposit(childId, typeId, amount, byParentId, autoRenew) {
     var type = depositType(typeId);
     if (!type) return null;
     var cur = curOf(type);
@@ -1136,6 +1136,7 @@
       /* The terms are copied onto the deposit, not looked up later: changing a
          product must never rewrite an agreement already made with a child. */
       termDays: type.termDays, ratePct: type.ratePct, earlyExit: !!type.earlyExit,
+      autoRenew: autoRenew !== false,
       amount: v, openedTs: opened,
       maturesTs: new Date(new Date(opened).getTime() + type.termDays * 86400000).toISOString(),
       status: "open", closedTs: null, interestPaid: 0, by: byParentId || null
@@ -1183,14 +1184,60 @@
     return d;
   }
 
+  function setAutoRenew(id, on) {
+    var d = depositById(id);
+    if (!d || d.status !== "open") return null;
+    d.autoRenew = !!on;
+    save();
+    return d;
+  }
+
+  /* A deposit that rolls over starts its new term the moment the old one ended
+     — not when somebody happened to open the app — so every device works out
+     the same dates, and a phone left shut for three months catches up to
+     exactly the same place as one that was watching.
+
+     Both the deposit and its lock row take ids derived from the old deposit, so
+     two phones settling the same maturity write the same rows and the merge
+     keeps one of each. The interest rides along with the principal, which is
+     what makes a rolling deposit compound. */
+  function renewDeposit(old) {
+    var id = "ren_" + old.id;
+    if (depositById(id)) return null;
+    var cur = curOf(old);
+    var carried = money(dec(old.amount) + dec(old.interestPaid));
+    var opened = old.maturesTs;
+    var d = {
+      id: id, childId: old.childId, typeId: old.typeId, cur: cur,
+      termDays: old.termDays, ratePct: old.ratePct, earlyExit: !!old.earlyExit,
+      autoRenew: true, amount: carried, openedTs: opened,
+      maturesTs: new Date(new Date(opened).getTime() + old.termDays * 86400000).toISOString(),
+      status: "open", closedTs: null, interestPaid: 0,
+      by: old.by || null, renewedFrom: old.id
+    };
+    depositList().push(d);
+    moneyRecord({ id: "lok_" + id, childId: old.childId, kind: "lock", amount: -carried,
+                  cur: cur, ts: opened, note: "", by: old.by || null, depositId: id });
+    old.renewedInto = id;
+    save();
+    return d;
+  }
+
   /* Deposits that have come to term pay out on their own the next time anybody
-     opens the app. The ids are derived from the deposit, so it does not matter
-     which device gets there first. */
+     opens the app, and roll over again if they are set to. The loop repeats
+     because a renewal can itself already be past its term — a weekly deposit
+     left alone for a month settles four times in one pass. */
   function settleMatured() {
-    var moved = 0;
-    depositList().forEach(function (d) {
-      if (d.status === "open" && matured(d)) { if (closeDeposit(d.id, d.by)) moved++; }
-    });
+    var moved = 0, again = true, guard = 0;
+    while (again && guard++ < 500) {
+      again = false;
+      depositList().slice().forEach(function (d) {
+        if (d.status !== "open" || !matured(d)) return;
+        if (!closeDeposit(d.id, d.by)) return;
+        moved++;
+        if (d.autoRenew !== false && renewDeposit(d)) again = true;
+      });
+    }
     return moved;
   }
 
@@ -1361,6 +1408,7 @@
     resetDepositTypes: resetDepositTypes,
     deposits: deposits, depositById: depositById, openDeposit: openDeposit,
     closeDeposit: closeDeposit, settleMatured: settleMatured,
+    setAutoRenew: setAutoRenew, renewDeposit: renewDeposit,
     matured: matured, daysHeld: daysHeld, interestOn: interestOn,
     requestMoney: requestMoney, moneyRequests: moneyRequests,
     reverseEntry: reverseEntry, canReverse: canReverse,

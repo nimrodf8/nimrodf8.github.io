@@ -275,6 +275,23 @@ Both currencies get the same ladder. An earlier version made euros pay less
 because real euro rates are lower; once the rates stopped modelling any real
 market, that gap had nothing behind it.
 
+**Rolling over.** A deposit rolls over by default: when the term is up, the
+money and its interest go straight into a new deposit on the same terms, so it
+keeps earning and the interest compounds from one term to the next. A switch on
+the running deposit turns it off, and then the money comes back as spendable
+instead.
+
+The new term starts the moment the old one ended — not when somebody happened to
+open the app — so every device works out the same dates, and a phone left shut
+for a month catches up to exactly the same place as one that was watching. Both
+the renewed deposit and its lock row take ids derived from the deposit they came
+from, so two phones settling the same maturity write the same rows and the merge
+keeps one of each.
+
+Worth knowing: a locked deposit that rolls over locks the money again for
+another full term. The switch is on the deposit itself so it can be turned off
+before the term is up.
+
 "Back to the suggested ladder" in the bank settings replaces whatever a family
 has built. Deposits already open keep the terms they were opened on — a
 published rate is an agreement with a child, and changing a product never

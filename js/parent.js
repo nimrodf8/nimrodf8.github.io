@@ -832,11 +832,19 @@
       '<div class="grow"><div class="title">' +
         (type ? typeName(type) : esc(termText(d.termDays))) + " · " +
         U.cash(d.amount, { plain: true, currency: cur }) + "</div>" +
-        '<div class="sub">' + esc(t("bank.ratePct", { n: U.iso(d.ratePct) })) + " · " +
+        '<div class="sub">' +
+          (isOpen
+            ? '<button class="tag' + (d.autoRenew !== false ? " brand" : "") +
+                '" data-act="' + (asChild ? "c" : "p") + '.depRenew" data-id="' + d.id +
+                '" title="' + esc(t("bank.autoRenewHint")) + '">' +
+                (d.autoRenew !== false ? "\u21BB " + esc(t("bank.renews")) : "\u23F9 " + esc(t("bank.renewsOff"))) +
+              "</button> · "
+            : "") +
+          esc(t("bank.ratePct", { n: U.iso(d.ratePct) })) + " · " +
           esc(isOpen
             ? (ready ? t("bank.maturedNow") : leftText(left)) + " · " +
               t("bank.willEarn", { v: U.cash(earns, { plain: true, currency: cur }) })
-            : t("bank.status." + d.status) +
+            : (d.renewedInto ? t("bank.status.renewed") : t("bank.status." + d.status)) +
               (earns ? " · " + t("bank.earned", { v: U.cash(earns, { plain: true, currency: cur }) }) : "")) +
         "</div></div>" +
       (isOpen
@@ -1988,7 +1996,11 @@
           }).join("") + "</div></div>" +
         '<div class="field"><label for="dAmount">' + esc(t("bank.amount")) + " (" + U.currencySymbol(cur) + ")</label>" +
           '<input id="dAmount" type="number" min="0.01" step="0.01" inputmode="decimal"></div>' +
-        '<button class="btn block" type="submit">' + esc(t("bank.openDeposit")) + "</button>" +
+        '<label class="row tight" style="align-items:flex-start">' +
+          '<input type="checkbox" id="dRenew" checked style="width:auto;margin-top:4px">' +
+          '<span class="grow">' + esc(t("bank.autoRenew")) +
+            '<br><small>' + esc(t("bank.autoRenewHint")) + "</small></span></label>" +
+        '<button class="btn block mt" type="submit">' + esc(t("bank.openDeposit")) + "</button>" +
       "</form>");
   }
   U.on("p.depNew", function (d) { openDepositDialog(d.id, false); });
@@ -1996,11 +2008,20 @@
   U.on("p.depSave", function (d, form) {
     var typeId = (form.querySelector('input[name="dtype"]:checked') || {}).value;
     var amount = S.money(U.el("#dAmount", form).value);
-    if (!S.openDeposit(d.id, typeId, amount, me().id)) return U.toast(t("bank.tooMuch"), "bad");
+    var renew = (U.el("#dRenew", form) || { checked: true }).checked;
+    if (!S.openDeposit(d.id, typeId, amount, me().id, renew)) return U.toast(t("bank.tooMuch"), "bad");
     U.closeModal();
     U.toast(t("common.saved"), "good");
     global.App.refresh();
   });
+  function toggleRenew(d) {
+    var dep = S.depositById(d.id);
+    if (!dep) return;
+    S.setAutoRenew(d.id, dep.autoRenew === false);
+    global.App.refresh();
+  }
+  U.on("p.depRenew", toggleRenew);
+  U.on("c.depRenew", toggleRenew);
   U.on("p.depClose", function (d) { closeDepositNow(d.id, false); });
   U.on("p.depBreak", function (d) {
     U.confirmDialog(t("bank.breakWarn"), function () { closeDepositNow(d.id, false); });

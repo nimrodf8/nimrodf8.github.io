@@ -414,7 +414,8 @@
   U.on("c.depSave", function (d, form) {
     var typeId = (form.querySelector('input[name="dtype"]:checked') || {}).value;
     var amount = S.money(U.el("#dAmount", form).value);
-    if (!S.openDeposit(me().id, typeId, amount, null)) return U.toast(t("bank.tooMuch"), "bad");
+    var renew = (U.el("#dRenew", form) || { checked: true }).checked;
+    if (!S.openDeposit(me().id, typeId, amount, null, renew)) return U.toast(t("bank.tooMuch"), "bad");
     U.closeModal();
     U.toast(t("common.saved"), "good");
     global.App.refresh();
