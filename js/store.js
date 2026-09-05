@@ -1030,14 +1030,25 @@
      A family writes its own: a term in days, a yearly rate, and whether the
      money can be taken out before the term is up. A year at 5% with the door
      locked, or a day at 0.5% with the door always open. */
+  /* The stored list, for writing to. */
+  function typeList() { return (state.settings.depositTypes = state.settings.depositTypes || []); }
+
+  /* What a reader gets: shortest term first, so the list reads as the ladder it
+     is meant to be rather than in the order somebody happened to add them. A
+     sorted copy, so the order on screen never rewrites what is stored and sets
+     off a sync. */
   function depositTypes(cur) {
-    var all = (state.settings.depositTypes = state.settings.depositTypes || []);
-    return cur ? all.filter(function (d) { return curOf(d) === cur; }) : all;
+    return typeList()
+      .filter(function (d) { return !cur || curOf(d) === cur; })
+      .slice()
+      .sort(function (a, b) {
+        return num(a.termDays) - num(b.termDays) || dec(a.ratePct) - dec(b.ratePct);
+      });
   }
   function depositType(id) { return byId(depositTypes(), id); }
 
   function saveDepositType(data) {
-    var list = depositTypes();
+    var list = typeList();
     var existing = data.id ? byId(list, data.id) : null;
     var type = existing || { id: uid("dpt") };
     type.name = data.name || "";
@@ -1053,39 +1064,56 @@
   }
   function deleteDepositType(id) {
     forget(id);
-    state.settings.depositTypes = depositTypes().filter(function (d) { return d.id !== id; });
+    state.settings.depositTypes = typeList().filter(function (d) { return d.id !== id; });
     save();
   }
 
   function defaultDepositTypes() {
-    /* Modelled on what Israeli banks actually paid on shekel deposits in mid
-       2026, when the Bank of Israel rate was about 3.5-3.75%: roughly nothing
-       on money you can take out any day, then climbing with the term to a bit
-       over 4% for a year. The euro side follows the ECB deposit rate, about
-       2.25% at the same date, which is why a euro deposit pays visibly less
-       than a shekel one — that is real, and worth a child seeing.
+    /* Rates for a family bank, not a market one.
 
-       These are a starting point, not advice. A parent can change every number,
-       and the family bank pays out of a parent's pocket, so the rates are
-       whatever the family decides they are.
+       Real Israeli deposit rates — around 1% for money you can take out any
+       day, 4% for a year — were the first thing here, and they do not work: on
+       the ₪50-300 a child actually holds, a day pays ₪0.00 and a month pays
+       about ₪0.16. A child concludes that saving does nothing, which is the
+       opposite of the lesson.
 
-       Named by key so each reads in the family's own language until renamed. */
+       So these are scaled to a child's balances and a child's patience: the
+       shortest rung pays something visible within a week, and every step up
+       pays meaningfully more. On ₪200 that is about ₪0.46 for a week, ₪3.95 for
+       a month, ₪19.73 for three, and ₪140 for a year. The money comes out of a
+       parent's pocket, so halve every number if that is too rich — the ratios
+       between the rungs are what teaches, not their height.
+
+       Both currencies get the same ladder. An earlier version made euros pay
+       less because real euro rates are lower; once the rates stopped modelling
+       any real market, that gap had nothing behind it. */
     var seed = [
-      /* key                     cur    days  rate  early exit */
-      ["bank.type.daily",        "ILS",    1,  1.0, true],
-      ["bank.type.month",        "ILS",   30,  3.2, true],
-      ["bank.type.quarter",      "ILS",   90,  3.6, true],
-      ["bank.type.half",         "ILS",  180,  3.9, false],
-      ["bank.type.year",         "ILS",  365,  4.2, false],
-      ["bank.type.twoYears",     "ILS",  730,  4.1, false],
-      ["bank.type.euroDaily",    "EUR",    1,  2.0, true],
-      ["bank.type.euroQuarter",  "EUR",   90,  2.3, true],
-      ["bank.type.euroYear",     "EUR",  365,  2.6, false]
+      /* key                cur    days  rate  can be broken */
+      ["bank.type.week",    "ILS",    7,  12, true],
+      ["bank.type.month",   "ILS",   30,  24, true],
+      ["bank.type.quarter", "ILS",   90,  40, false],
+      ["bank.type.half",    "ILS",  180,  55, false],
+      ["bank.type.year",    "ILS",  365,  70, false],
+      ["bank.type.week",    "EUR",    7,  12, true],
+      ["bank.type.month",   "EUR",   30,  24, true],
+      ["bank.type.quarter", "EUR",   90,  40, false],
+      ["bank.type.half",    "EUR",  180,  55, false],
+      ["bank.type.year",    "EUR",  365,  70, false]
     ];
     return seed.map(function (r) {
       return { id: uid("dpt"), nameKey: r[0], name: "", cur: r[1],
                termDays: r[2], ratePct: r[3], earlyExit: r[4], active: true };
     });
+  }
+
+  /* Throw away whatever a family has built and start from the suggested ladder
+     again. The old ids are remembered as deleted so the other phones drop them
+     too instead of merging them back. */
+  function resetDepositTypes() {
+    typeList().forEach(function (d) { forget(d.id); });
+    state.settings.depositTypes = defaultDepositTypes();
+    save();
+    return state.settings.depositTypes;
   }
 
   /* ---- deposits ---- */
@@ -1330,6 +1358,7 @@
     pointsToMoney: pointsToMoney, convert: convert,
     depositTypes: depositTypes, depositType: depositType, saveDepositType: saveDepositType,
     deleteDepositType: deleteDepositType, defaultDepositTypes: defaultDepositTypes,
+    resetDepositTypes: resetDepositTypes,
     deposits: deposits, depositById: depositById, openDeposit: openDeposit,
     closeDeposit: closeDeposit, settleMatured: settleMatured,
     matured: matured, daysHeld: daysHeld, interestOn: interestOn,

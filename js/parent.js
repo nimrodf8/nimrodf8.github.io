@@ -667,7 +667,9 @@
       '<button class="btn small" data-act="p.typeNew">＋</button></div>' +
       S.currencies.map(typesForCurrency).join("") +
       '<p class="hint">' + esc(t("bank.depositTypesHint")) + "</p>" +
-      '<p class="hint">' + esc(t("bank.ratesNote")) + "</p>";
+      '<p class="hint">' + esc(t("bank.ratesNote")) + "</p>" +
+      '<button class="btn ghost small block" data-act="p.typesReset">\u21BA ' +
+        esc(t("bank.resetTypes")) + "</button>";
   }
 
   function typesForCurrency(cur) {
@@ -1905,6 +1907,13 @@
     U.closeModal();
     U.toast(t("common.saved"), "good");
     global.App.refresh();
+  });
+  U.on("p.typesReset", function () {
+    U.confirmDialog(t("bank.resetTypesConfirm"), function () {
+      S.resetDepositTypes();
+      U.toast(t("bank.resetTypesDone"), "good");
+      global.App.refresh();
+    });
   });
   U.on("p.typeDelete", function (d) {
     var type = S.depositType(d.id);

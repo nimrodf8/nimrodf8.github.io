@@ -255,14 +255,30 @@ are each judged against their own account: a euro withdrawal cannot be covered
 by a shekel balance.
 
 **Deposits.** A family writes its own kinds: a currency, a term in days, a yearly
-rate, and whether the money may come out early. A new family starts with nine,
-modelled on what Israeli banks actually paid on shekel deposits in mid-2026 —
-about 1% on money you can take out any day, climbing to roughly 4.2% for a year
-— and on the ECB deposit rate for the euro shelf, which is why a euro deposit
-visibly pays less than a shekel one. They are a starting point, not advice: the
-family bank pays out of a parent's pocket, so every number is editable, and the
-screen says so. Money inside a deposit leaves the spendable balance and is
-reported separately.
+rate, and whether the money may come out early. Money inside a deposit leaves
+the spendable balance and is reported separately. The list is shown shortest
+term first, whatever order it was built in, so it reads as the ladder it is.
+
+The suggested ladder is a week, a month, three months, six months and a year, at
+12/24/40/55/70% a year, breakable at the two short rungs and locked above them.
+
+Those rates are for a family bank, not a market one. Real Israeli deposit rates
+were here first — about 1% on money you can take out any day, 4.2% for a year,
+which is what banks were actually paying in mid-2026 — and they do not work at a
+child's scale: on the ₪50-300 a child holds, a day pays ₪0.00 and a month pays
+about ₪0.16. A child concludes that saving does nothing, which is the opposite
+of the lesson. Scaled up, the week pays about ₪0.46 on ₪200 and the year ₪140.
+Halve every number if that is too rich — what teaches is the gap between the
+rungs, not their height, and the money comes out of a parent's pocket.
+
+Both currencies get the same ladder. An earlier version made euros pay less
+because real euro rates are lower; once the rates stopped modelling any real
+market, that gap had nothing behind it.
+
+"Back to the suggested ladder" in the bank settings replaces whatever a family
+has built. Deposits already open keep the terms they were opened on — a
+published rate is an agreement with a child, and changing a product never
+rewrites one.
 
 Interest is simple, not compound: the yearly rate for the days the money
 actually sat there, which a child can check with a calculator. Breaking a

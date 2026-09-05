@@ -672,6 +672,7 @@ nav.tabs .badge {
     "bank.type.daily": "Day by day",
     "bank.type.month": "One month",
     "bank.type.quarter": "Three months",
+    "bank.type.week": "One week",
     "bank.type.half": "Six months",
     "bank.type.year": "A whole year",
     "bank.type.twoYears": "Two years",
@@ -693,7 +694,10 @@ nav.tabs .badge {
     "bank.defaultCurrencyHint": "What a new deposit or withdrawal is in unless you say otherwise. A child gets an account in another currency as soon as they are given money in it.",
     "bank.otherAccount": "{c} account",
     "bank.noTypesFor": "No kinds of deposit in {c} yet.",
-    "bank.ratesNote": "Starting rates, modelled on Israeli bank deposits in 2026 and the ECB rate for euros. Change them to whatever your family means them to be \u2014 the money comes out of your pocket.",
+    "bank.ratesNote": "Rates for a family bank, not a market one: real bank rates pay a child about a penny a month, which teaches the wrong thing. On \u20aa200 the week pays about \u20aa0.46 and the year about \u20aa140. Halve them all if that is too rich \u2014 what teaches is the gap between the rungs, not their height.",
+    "bank.resetTypes": "Back to the suggested ladder",
+    "bank.resetTypesConfirm": "Replace every kind of deposit with the suggested ladder? Anything you have written here is lost. Deposits already open keep the terms they were opened on.",
+    "bank.resetTypesDone": "The ladder is back.",
 
     "bank.settings": "Bank settings",
     "bank.currency": "Currency",
@@ -1197,6 +1201,7 @@ nav.tabs .badge {
     "bank.type.daily": "Per dag",
     "bank.type.month": "E\u00e9n maand",
     "bank.type.quarter": "Drie maanden",
+    "bank.type.week": "E\u00e9n week",
     "bank.type.half": "Zes maanden",
     "bank.type.year": "Een heel jaar",
     "bank.type.twoYears": "Twee jaar",
@@ -1218,7 +1223,10 @@ nav.tabs .badge {
     "bank.defaultCurrencyHint": "Waarin een nieuwe storting of opname staat, tenzij je iets anders kiest. Een kind krijgt vanzelf een rekening in een andere valuta zodra het daarin geld krijgt.",
     "bank.otherAccount": "{c}-rekening",
     "bank.noTypesFor": "Nog geen soorten deposito in {c}.",
-    "bank.ratesNote": "Beginrentes, gebaseerd op Isra\u00eblische bankdeposito\u2019s in 2026 en op de ECB-rente voor euro\u2019s. Pas ze aan naar wat jullie bedoelen \u2014 het geld komt uit je eigen zak.",
+    "bank.ratesNote": "Rentes voor een gezinsbank, niet voor een echte: echte bankrentes leveren een kind ongeveer een cent per maand op, en dat leert precies het verkeerde. Op \u20aa200 levert de week ongeveer \u20aa0,46 op en het jaar ongeveer \u20aa140. Halveer ze allemaal als dat te veel is \u2014 het gaat om het verschil tussen de treden, niet om de hoogte.",
+    "bank.resetTypes": "Terug naar de voorgestelde ladder",
+    "bank.resetTypesConfirm": "Alle soorten deposito vervangen door de voorgestelde ladder? Wat je hier zelf hebt gemaakt gaat verloren. Lopende deposito\u2019s houden de voorwaarden waarmee ze zijn geopend.",
+    "bank.resetTypesDone": "De ladder staat er weer.",
 
     "bank.settings": "Bankinstellingen",
     "bank.currency": "Valuta",
@@ -1722,6 +1730,7 @@ nav.tabs .badge {
     "bank.type.daily": "יומי",
     "bank.type.month": "חודש",
     "bank.type.quarter": "שלושה חודשים",
+    "bank.type.week": "שבוע",
     "bank.type.half": "חצי שנה",
     "bank.type.year": "שנה שלמה",
     "bank.type.twoYears": "שנתיים",
@@ -1743,7 +1752,10 @@ nav.tabs .badge {
     "bank.defaultCurrencyHint": "המטבע של כל הפקדה או משיכה חדשה, אלא אם תבחרו אחרת. ילד מקבל חשבון במטבע אחר ברגע שמפקידים לו בו.",
     "bank.otherAccount": "חשבון {c}",
     "bank.noTypesFor": "עדיין אין סוגי פקדון ב{c}.",
-    "bank.ratesNote": "ריביות פתיחה, על סמך פיקדונות בבנקים בישראל ב-2026 ולפי ריבית ה-ECB ליורו. שנו אותן למה שמתאים לכם — הכסף יוצא מהכיס שלכם.",
+    "bank.ratesNote": "ריביות של בנק משפחתי, לא של בנק אמיתי: ריבית אמיתית מזכה ילד באגורות בודדות בחודש, וזה מלמד בדיוק את ההפך. על ₪200 השבוע מניב בערך ₪0.46 והשנה בערך ₪140. חצו הכול אם זה יקר מדי — מה שמלמד זה הפער בין השלבים, לא הגובה שלהם.",
+    "bank.resetTypes": "חזרה לסולם המומלץ",
+    "bank.resetTypesConfirm": "להחליף את כל סוגי הפקדון בסולם המומלץ? מה שכתבתם כאן יימחק. פקדונות שכבר פתוחים שומרים על התנאים שנפתחו בהם.",
+    "bank.resetTypesDone": "הסולם הוחזר.",
 
     "bank.settings": "הגדרות הבנק",
     "bank.currency": "מטבע",
@@ -3382,14 +3394,25 @@ nav.tabs .badge {
      A family writes its own: a term in days, a yearly rate, and whether the
      money can be taken out before the term is up. A year at 5% with the door
      locked, or a day at 0.5% with the door always open. */
+  /* The stored list, for writing to. */
+  function typeList() { return (state.settings.depositTypes = state.settings.depositTypes || []); }
+
+  /* What a reader gets: shortest term first, so the list reads as the ladder it
+     is meant to be rather than in the order somebody happened to add them. A
+     sorted copy, so the order on screen never rewrites what is stored and sets
+     off a sync. */
   function depositTypes(cur) {
-    var all = (state.settings.depositTypes = state.settings.depositTypes || []);
-    return cur ? all.filter(function (d) { return curOf(d) === cur; }) : all;
+    return typeList()
+      .filter(function (d) { return !cur || curOf(d) === cur; })
+      .slice()
+      .sort(function (a, b) {
+        return num(a.termDays) - num(b.termDays) || dec(a.ratePct) - dec(b.ratePct);
+      });
   }
   function depositType(id) { return byId(depositTypes(), id); }
 
   function saveDepositType(data) {
-    var list = depositTypes();
+    var list = typeList();
     var existing = data.id ? byId(list, data.id) : null;
     var type = existing || { id: uid("dpt") };
     type.name = data.name || "";
@@ -3405,39 +3428,56 @@ nav.tabs .badge {
   }
   function deleteDepositType(id) {
     forget(id);
-    state.settings.depositTypes = depositTypes().filter(function (d) { return d.id !== id; });
+    state.settings.depositTypes = typeList().filter(function (d) { return d.id !== id; });
     save();
   }
 
   function defaultDepositTypes() {
-    /* Modelled on what Israeli banks actually paid on shekel deposits in mid
-       2026, when the Bank of Israel rate was about 3.5-3.75%: roughly nothing
-       on money you can take out any day, then climbing with the term to a bit
-       over 4% for a year. The euro side follows the ECB deposit rate, about
-       2.25% at the same date, which is why a euro deposit pays visibly less
-       than a shekel one — that is real, and worth a child seeing.
+    /* Rates for a family bank, not a market one.
 
-       These are a starting point, not advice. A parent can change every number,
-       and the family bank pays out of a parent's pocket, so the rates are
-       whatever the family decides they are.
+       Real Israeli deposit rates — around 1% for money you can take out any
+       day, 4% for a year — were the first thing here, and they do not work: on
+       the ₪50-300 a child actually holds, a day pays ₪0.00 and a month pays
+       about ₪0.16. A child concludes that saving does nothing, which is the
+       opposite of the lesson.
 
-       Named by key so each reads in the family's own language until renamed. */
+       So these are scaled to a child's balances and a child's patience: the
+       shortest rung pays something visible within a week, and every step up
+       pays meaningfully more. On ₪200 that is about ₪0.46 for a week, ₪3.95 for
+       a month, ₪19.73 for three, and ₪140 for a year. The money comes out of a
+       parent's pocket, so halve every number if that is too rich — the ratios
+       between the rungs are what teaches, not their height.
+
+       Both currencies get the same ladder. An earlier version made euros pay
+       less because real euro rates are lower; once the rates stopped modelling
+       any real market, that gap had nothing behind it. */
     var seed = [
-      /* key                     cur    days  rate  early exit */
-      ["bank.type.daily",        "ILS",    1,  1.0, true],
-      ["bank.type.month",        "ILS",   30,  3.2, true],
-      ["bank.type.quarter",      "ILS",   90,  3.6, true],
-      ["bank.type.half",         "ILS",  180,  3.9, false],
-      ["bank.type.year",         "ILS",  365,  4.2, false],
-      ["bank.type.twoYears",     "ILS",  730,  4.1, false],
-      ["bank.type.euroDaily",    "EUR",    1,  2.0, true],
-      ["bank.type.euroQuarter",  "EUR",   90,  2.3, true],
-      ["bank.type.euroYear",     "EUR",  365,  2.6, false]
+      /* key                cur    days  rate  can be broken */
+      ["bank.type.week",    "ILS",    7,  12, true],
+      ["bank.type.month",   "ILS",   30,  24, true],
+      ["bank.type.quarter", "ILS",   90,  40, false],
+      ["bank.type.half",    "ILS",  180,  55, false],
+      ["bank.type.year",    "ILS",  365,  70, false],
+      ["bank.type.week",    "EUR",    7,  12, true],
+      ["bank.type.month",   "EUR",   30,  24, true],
+      ["bank.type.quarter", "EUR",   90,  40, false],
+      ["bank.type.half",    "EUR",  180,  55, false],
+      ["bank.type.year",    "EUR",  365,  70, false]
     ];
     return seed.map(function (r) {
       return { id: uid("dpt"), nameKey: r[0], name: "", cur: r[1],
                termDays: r[2], ratePct: r[3], earlyExit: r[4], active: true };
     });
+  }
+
+  /* Throw away whatever a family has built and start from the suggested ladder
+     again. The old ids are remembered as deleted so the other phones drop them
+     too instead of merging them back. */
+  function resetDepositTypes() {
+    typeList().forEach(function (d) { forget(d.id); });
+    state.settings.depositTypes = defaultDepositTypes();
+    save();
+    return state.settings.depositTypes;
   }
 
   /* ---- deposits ---- */
@@ -3682,6 +3722,7 @@ nav.tabs .badge {
     pointsToMoney: pointsToMoney, convert: convert,
     depositTypes: depositTypes, depositType: depositType, saveDepositType: saveDepositType,
     deleteDepositType: deleteDepositType, defaultDepositTypes: defaultDepositTypes,
+    resetDepositTypes: resetDepositTypes,
     deposits: deposits, depositById: depositById, openDeposit: openDeposit,
     closeDeposit: closeDeposit, settleMatured: settleMatured,
     matured: matured, daysHeld: daysHeld, interestOn: interestOn,
@@ -5836,7 +5877,9 @@ nav.tabs .badge {
       '<button class="btn small" data-act="p.typeNew">＋</button></div>' +
       S.currencies.map(typesForCurrency).join("") +
       '<p class="hint">' + esc(t("bank.depositTypesHint")) + "</p>" +
-      '<p class="hint">' + esc(t("bank.ratesNote")) + "</p>";
+      '<p class="hint">' + esc(t("bank.ratesNote")) + "</p>" +
+      '<button class="btn ghost small block" data-act="p.typesReset">\u21BA ' +
+        esc(t("bank.resetTypes")) + "</button>";
   }
 
   function typesForCurrency(cur) {
@@ -7074,6 +7117,13 @@ nav.tabs .badge {
     U.closeModal();
     U.toast(t("common.saved"), "good");
     global.App.refresh();
+  });
+  U.on("p.typesReset", function () {
+    U.confirmDialog(t("bank.resetTypesConfirm"), function () {
+      S.resetDepositTypes();
+      U.toast(t("bank.resetTypesDone"), "good");
+      global.App.refresh();
+    });
   });
   U.on("p.typeDelete", function (d) {
     var type = S.depositType(d.id);
