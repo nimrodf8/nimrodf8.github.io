@@ -268,12 +268,18 @@
   }
   on("modal.close", closeModal);
 
-  function confirmDialog(message, onYes) {
-    modal(t("common.confirm"),
+  /* `opts` lets a caller name the two buttons. The defaults suit a deletion;
+     something merely inconvenient, like signing out, reads better when the
+     buttons say what they do rather than yes and no. */
+  function confirmDialog(message, onYes, opts) {
+    opts = opts || {};
+    modal(opts.title || t("common.confirm"),
       '<p class="lead">' + esc(message) + "</p>" +
       '<div class="row end gap">' +
-        '<button class="btn ghost" data-act="modal.close">' + esc(t("common.cancel")) + "</button>" +
-        '<button class="btn danger" data-act="confirm.yes">' + esc(t("common.yes")) + "</button>" +
+        '<button class="btn ghost" data-act="modal.close">' +
+          esc(opts.cancel || t("common.cancel")) + "</button>" +
+        '<button class="btn ' + (opts.kind || "danger") + '" data-act="confirm.yes">' +
+          esc(opts.yes || t("common.yes")) + "</button>" +
       "</div>");
     handlers["confirm.yes"] = function () { closeModal(); onYes(); };
   }

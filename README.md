@@ -397,6 +397,14 @@ and re-added the icon to pick up the new artwork, and came back to an empty app.
 The full-screen look is not worth that. If it is ever wanted again, ship it
 together with a way to get back in that does not depend on browser storage.
 
+### Asking before signing out
+
+The sign-out button sits in a small row at the top of every screen, next to the
+language button, where a thumb finds it easily. Signing out loses nothing, but
+on a child's phone it means finding a parent to type a PIN again, so it asks
+first — naming whoever is about to be signed out, and offering "stay signed in"
+rather than "cancel", so the two buttons say what they do.
+
 ### Motion
 
 Balances count up to a new value rather than blinking to it, and points actually

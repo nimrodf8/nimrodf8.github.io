@@ -109,10 +109,20 @@
   }
 
   U.on("app.tab", function (d) { go({ tab: d.tab, params: {} }); });
+  /* The sign-out button sits next to the language button in a small row at the
+     top, which is easy to catch with a thumb. Nothing is lost by signing out,
+     but on a child's phone it means finding a parent to type a PIN again, so it
+     asks first. */
   U.on("app.logout", function () {
-    U.forgetScores();
-    S.clearSession();
-    go({ screen: "login", tab: "dashboard", params: {} });
+    var s = session();
+    var user = s.kind === "parent" ? S.parent(s.id) : s.kind === "child" ? S.child(s.id) : null;
+    var ask = user ? t("common.logoutConfirm", { name: S.nameOf(user) })
+                   : t("common.logoutConfirmPlain");
+    U.confirmDialog(ask, function () {
+      U.forgetScores();
+      S.clearSession();
+      go({ screen: "login", tab: "dashboard", params: {} });
+    }, { title: t("common.logout"), yes: t("common.logout"), cancel: t("common.stay") });
   });
   U.on("app.lang", function () {
     var signedIn = view.screen === "parent" || view.screen === "child";
