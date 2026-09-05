@@ -284,10 +284,27 @@
      sentence instead of coming out back to front. */
   var SYMBOL = { EUR: "\u20ac", ILS: "\u20aa" };
   function currencySymbol(code) { return SYMBOL[code || global.Store.currency()] || "\u20ac"; }
+
+  /* Grouped thousands, in the reader's own convention — 1.234,50 for a Dutch
+     reader, 1,234.50 for the others. The formatters are cached because the
+     count-up animation asks for one on every frame. */
+  var groupers = {};
+  function grouped(n) {
+    var lang = global.I18N.lang || "en";
+    if (!groupers[lang]) {
+      try {
+        groupers[lang] = new Intl.NumberFormat(lang, {
+          minimumFractionDigits: 2, maximumFractionDigits: 2
+        });
+      } catch (e) { groupers[lang] = { format: function (v) { return v.toFixed(2); } }; }
+    }
+    return groupers[lang].format(n);
+  }
+
   function cash(value, opts) {
     var n = global.Store.money(value);
     var sign = n < 0 ? "-" : (opts && opts.sign && n > 0 ? "+" : "");
-    var body = currencySymbol(opts && opts.currency) + Math.abs(n).toFixed(2);
+    var body = currencySymbol(opts && opts.currency) + grouped(Math.abs(n));
     var text = iso(sign + body);
     if (opts && opts.plain) return text;
     var cls = n > 0 ? "pos" : n < 0 ? "neg" : "zero";
@@ -305,9 +322,9 @@
     return '<span class="score' + (opts.cls ? " " + opts.cls : "") + '"' +
       (opts.style ? ' style="' + opts.style + '"' : "") +
       ' data-score="' + esc(key) + '" data-value="' + n + '"' +
-      (opts.money ? ' data-money="1"' : "") +
+      (opts.money ? ' data-money="' + esc(opts.currency || global.Store.currency()) + '"' : "") +
       (opts.cheer ? ' data-cheer="1"' : "") + ">" +
-      (opts.money ? cash(n, { plain: true }) : n) + "</span>";
+      (opts.money ? cash(n, { plain: true, currency: opts.currency }) : n) + "</span>";
   }
 
   var lastScores = {};
@@ -327,7 +344,7 @@
       var from = lastScores[key];
       lastScores[key] = to;
       if (from === undefined || from === to) return;
-      var asMoney = !!node.getAttribute("data-money");
+      var asMoney = node.getAttribute("data-money");
 
       node.classList.add(to > from ? "up" : "down");
       setTimeout(function () { node.classList.remove("up", "down"); }, 900);
@@ -340,7 +357,7 @@
   function countTo(node, from, to, asMoney) {
     var span = 620, started = null;
     var show = asMoney
-      ? function (v) { return cash(v, { plain: true }); }
+      ? function (v) { return cash(v, { plain: true, currency: asMoney }); }
       : function (v) { return Math.round(v); };
     if (node._count) global.cancelAnimationFrame(node._count);
     function frame(ts) {

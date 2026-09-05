@@ -600,6 +600,10 @@
         '<div class="field"><span class="field-label">' + esc(t("kids.colour")) + "</span>" +
           U.colorPicker(startColor, "p.childColor") +
           '<div class="hint">' + esc(t("kids.colourHint")) + "</div></div>" +
+        '<div class="field"><label for="cnSaving">' + esc(t("bank.savingFor")) + "</label>" +
+          '<input id="cnSaving" type="text" value="' + esc(c.savingsNote || "") +
+            '" placeholder="' + esc(t("bank.savingForShort")) + '">' +
+          '<div class="hint">' + esc(t("bank.savingForHint")) + "</div></div>" +
         '<button class="btn block" type="submit">' + esc(t("common.save")) + "</button>" +
       "</form>");
     editingAvatar = c.avatar;
@@ -635,12 +639,16 @@
     }
 
     html += '<div class="card flush"><ul class="list">' + s.children.map(function (c) {
-      var cash = S.cashBalance(c.id), locked = S.lockedBalance(c.id);
+      var lines = S.currenciesFor(c.id).map(function (cur) {
+        var locked = S.lockedBalance(c.id, cur);
+        return U.cash(S.cashBalance(c.id, cur), { plain: true, currency: cur }) +
+          (locked ? " <small>+" + U.cash(locked, { plain: true, currency: cur }) + " " +
+            esc(t("bank.locked")) + "</small>" : "");
+      });
       return '<li class="kid-row" style="--kid:' + S.childColor(c) + '">' +
         U.childAvatar(c, 40) +
         '<div class="grow"><div class="title">' + U.name(c) + "</div>" +
-        '<div class="sub">' + esc(t("bank.cash")) + " " + U.cash(cash, { plain: true }) +
-          (locked ? " · " + esc(t("bank.locked")) + " " + U.cash(locked, { plain: true }) : "") + "</div></div>" +
+        '<div class="sub">' + lines.join(" · ") + "</div></div>" +
         '<div class="row tight nowrap">' +
           '<button class="btn small good" data-act="p.bankIn" data-id="' + c.id + '">＋</button>' +
           '<button class="btn small ghost" data-act="p.bankOut" data-id="' + c.id + '">－</button>' +
@@ -655,9 +663,17 @@
   }
 
   function depositTypesCard() {
-    var types = S.depositTypes();
     return '<div class="section-title">' + esc(t("bank.depositTypes")) +
       '<button class="btn small" data-act="p.typeNew">＋</button></div>' +
+      S.currencies.map(typesForCurrency).join("") +
+      '<p class="hint">' + esc(t("bank.depositTypesHint")) + "</p>" +
+      '<p class="hint">' + esc(t("bank.ratesNote")) + "</p>";
+  }
+
+  function typesForCurrency(cur) {
+    var types = S.depositTypes(cur);
+    return '<div class="section-title" style="margin-top:10px">' +
+        U.currencySymbol(cur) + " " + cur + "</div>" +
       '<div class="card flush">' + (types.length
         ? types.map(function (d) {
             return '<div class="task-row' + (d.active === false ? " paused" : "") + '">' +
@@ -669,9 +685,9 @@
               '<button class="icon-btn" data-act="p.typeDelete" data-id="' + d.id + '">\u{1F5D1}️</button>' +
             "</div>";
           }).join("")
-        : U.emptyState(t("bank.noTypes"), "\u{1F4C8}", t("bank.noTypesHint"),
-            '<button class="btn small" data-act="p.typeNew">＋ ' + esc(t("bank.newType")) + "</button>")) +
-      "</div>" + '<p class="hint">' + esc(t("bank.depositTypesHint")) + "</p>";
+        : U.emptyState(t("bank.noTypesFor", { c: cur }), "\u{1F4C8}", t("bank.noTypesHint"),
+            '<button class="btn small" data-act="p.typeNew" data-cur="' + cur + '">＋ ' +
+            esc(t("bank.newType")) + "</button>")) + "</div>";
   }
   /* "1 ימים" and "1 dagen" are wrong in both languages, so a single day gets
      its own wording rather than a number slotted into a plural. */
@@ -689,15 +705,25 @@
     var s = S.get();
     return '<div class="section-title">' + esc(t("bank.settings")) + "</div>" +
       '<div class="card"><form data-act="p.bankSettings">' +
-        '<div class="field"><span class="field-label">' + esc(t("bank.currency")) + "</span>" +
-          '<div class="chips">' + ["EUR", "ILS"].map(function (code) {
+        '<div class="field"><span class="field-label">' + esc(t("bank.defaultCurrency")) + "</span>" +
+          '<div class="chips">' + S.currencies.map(function (code) {
             return '<button type="button" class="chip' + (S.currency() === code ? " on" : "") +
               '" data-act="p.currency" data-code="' + code + '">' +
               U.currencySymbol(code) + " " + code + "</button>";
-          }).join("") + "</div></div>" +
-        '<div class="field"><label for="bRate">' + esc(t("bank.rateTitle")) + "</label>" +
-          '<input id="bRate" type="number" min="0" step="1" value="' + S.conversionRate() + '">' +
-          '<div class="hint">' + esc(t("bank.rateHint", { c: U.currencySymbol() })) + "</div></div>" +
+          }).join("") + "</div>" +
+          '<div class="hint">' + esc(t("bank.defaultCurrencyHint")) + "</div></div>" +
+        '<div class="field"><span class="field-label">' + esc(t("bank.rateTitle")) + "</span>" +
+          S.currencies.map(function (code) {
+            /* A div, not a label: `.field > label` in the stylesheet forces
+               display:block and would break the row apart. The label sits
+               inside it, tied to the input by `for`. */
+            return '<div class="row tight nowrap" style="margin-bottom:8px">' +
+              '<label for="bRate-' + code + '" style="min-width:4.5em;margin:0">' +
+                U.currencySymbol(code) + " 1 =</label>" +
+              '<input class="grow" id="bRate-' + code + '" type="number" min="0" step="1" value="' +
+                S.conversionRate(code) + '"><span>' + esc(t("common.pts")) + "</span></div>";
+          }).join("") +
+          '<div class="hint">' + esc(t("bank.rateHintMulti")) + "</div></div>" +
         '<button class="btn block" type="submit">' + esc(t("common.save")) + "</button>" +
       "</form></div>";
   }
@@ -716,40 +742,61 @@
 
   /* Shared with the child's own screen: `asChild` decides whether the buttons
      move money or only ask for it. */
+  /* One card per account. The family's everyday currency is always the first,
+     even at zero; another appears only once a child has actually been given
+     money in it. */
   function accountCard(c, asChild) {
-    var cash = S.cashBalance(c.id), locked = S.lockedBalance(c.id);
     var saving = (c.savingsNote || "").trim();
-    return '<div class="card hero kid center" style="--kid:' + S.childColor(c) + '">' +
-      (asChild ? "" : U.childAvatar(c, 64) + "<h2 style=\"margin-top:8px\">" + U.name(c) + "</h2>") +
-      '<div class="eyebrow">' + esc(t("bank.cash")) + "</div>" +
-      U.scoreEl("cash:" + c.id, cash, { cls: "hero", money: true }) +
-      (locked
-        ? '<div class="row gap mt" style="justify-content:center">' +
-            '<span class="tag" style="background:rgba(255,255,255,.22);color:#fff">' +
-              esc(t("bank.locked")) + " " + U.cash(locked, { plain: true }) + "</span>" +
-            '<span class="tag" style="background:rgba(255,255,255,.22);color:#fff">' +
-              esc(t("bank.total")) + " " + U.cash(S.moneyTotal(c.id), { plain: true }) + "</span>" +
-          "</div>"
-        : "") +
-      (saving ? '<p style="margin-top:10px">\u{1F3AF} ' + U.trHtml(c, "savingsNote") + "</p>" : "") +
-      '<div class="row gap mt" style="justify-content:center">' +
-        (asChild
-          ? '<button class="btn good small" data-act="c.bankAsk" data-kind="deposit">' + esc(t("bank.requestDeposit")) + "</button>" +
-            '<button class="btn ghost small" data-act="c.bankAsk" data-kind="withdraw">' + esc(t("bank.requestWithdraw")) + "</button>"
-          : '<button class="btn good small" data-act="p.bankIn" data-id="' + c.id + '">＋ ' + esc(t("bank.deposit")) + "</button>" +
-            '<button class="btn ghost small" data-act="p.bankOut" data-id="' + c.id + '">－ ' + esc(t("bank.withdraw")) + "</button>") +
-      "</div>" +
-    "</div>";
+    var head = asChild ? "" :
+      '<div class="center" style="margin-bottom:10px">' + U.childAvatar(c, 64) +
+      "<h2 style=\"margin-top:8px\">" + U.name(c) + "</h2></div>";
+    var note = saving ? '<p class="center" style="margin-top:10px">\u{1F3AF} ' +
+      U.trHtml(c, "savingsNote") + "</p>" : "";
+
+    return head + S.currenciesFor(c.id).map(function (cur, i) {
+      var locked = S.lockedBalance(c.id, cur);
+      return '<div class="card hero kid center" style="--kid:' + S.childColor(c) + '">' +
+        '<div class="eyebrow">' + esc(t("bank.cash")) +
+          (i ? " · " + esc(t("bank.otherAccount", { c: cur })) : "") + "</div>" +
+        U.scoreEl("cash:" + c.id + ":" + cur, S.cashBalance(c.id, cur),
+                  { cls: "hero", money: true, currency: cur }) +
+        (locked
+          ? '<div class="row gap mt" style="justify-content:center">' +
+              '<span class="tag" style="background:rgba(255,255,255,.22);color:#fff">' +
+                esc(t("bank.locked")) + " " + U.cash(locked, { plain: true, currency: cur }) + "</span>" +
+              '<span class="tag" style="background:rgba(255,255,255,.22);color:#fff">' +
+                esc(t("bank.total")) + " " + U.cash(S.moneyTotal(c.id, cur), { plain: true, currency: cur }) + "</span>" +
+            "</div>"
+          : "") +
+        (i === 0 ? note : "") +
+        '<div class="row gap mt" style="justify-content:center">' +
+          (asChild
+            ? '<button class="btn good small" data-act="c.bankAsk" data-kind="deposit" data-cur="' + cur + '">' +
+                esc(t("bank.requestDeposit")) + "</button>" +
+              '<button class="btn ghost small" data-act="c.bankAsk" data-kind="withdraw" data-cur="' + cur + '">' +
+                esc(t("bank.requestWithdraw")) + "</button>"
+            : '<button class="btn good small" data-act="p.bankIn" data-id="' + c.id + '" data-cur="' + cur + '">＋ ' +
+                esc(t("bank.deposit")) + "</button>" +
+              '<button class="btn ghost small" data-act="p.bankOut" data-id="' + c.id + '" data-cur="' + cur + '">－ ' +
+                esc(t("bank.withdraw")) + "</button>") +
+        "</div>" +
+      "</div>";
+    }).join("");
   }
 
   function depositsCard(c, asChild) {
     var all = S.deposits(c.id);
     var open = all.filter(function (d) { return d.status === "open"; });
     var done = all.filter(function (d) { return d.status !== "open"; });
-    var types = S.depositTypes().filter(function (d) { return d.active !== false; });
+    /* Offered only where the child has money in a currency that has a product
+       to put it in — otherwise the button leads to an empty dialog. */
+    var canOpen = S.currenciesFor(c.id).some(function (cur) {
+      return S.cashBalance(c.id, cur) > 0 &&
+        S.depositTypes(cur).some(function (x) { return x.active !== false; });
+    });
 
     var html = '<div class="section-title">' + esc(t("bank.deposits")) +
-      (types.length && S.cashBalance(c.id) > 0
+      (canOpen
         ? '<button class="btn small" data-act="' + (asChild ? "c" : "p") + '.depNew" data-id="' + c.id + '">＋ ' +
           esc(t("bank.openDeposit")) + "</button>"
         : "") + "</div>";
@@ -766,6 +813,7 @@
   }
 
   function depositRow(d, asChild) {
+    var cur = S.curOf(d);
     var type = S.depositType(d.typeId);
     var isOpen = d.status === "open";
     var ready = isOpen && S.matured(d);
@@ -776,12 +824,13 @@
     return '<div class="task-row' + (isOpen ? "" : " paused") + '">' +
       '<span class="rank-badge">' + (ready ? "✅" : isOpen ? "⏳" : d.status === "broken" ? "✂️" : "\u{1F4B0}") + "</span>" +
       '<div class="grow"><div class="title">' + (type ? typeName(type) : esc(t("bank.deposits"))) + " · " +
-        U.cash(d.amount, { plain: true }) + "</div>" +
+        U.cash(d.amount, { plain: true, currency: cur }) + "</div>" +
         '<div class="sub">' + esc(t("bank.ratePct", { n: U.iso(d.ratePct) })) + " · " +
           esc(isOpen
             ? (ready ? t("bank.maturedNow") : leftText(left)) + " · " +
-              t("bank.willEarn", { v: U.cash(earns, { plain: true }) })
-            : t("bank.status." + d.status) + (earns ? " · " + t("bank.earned", { v: U.cash(earns, { plain: true }) }) : "")) +
+              t("bank.willEarn", { v: U.cash(earns, { plain: true, currency: cur }) })
+            : t("bank.status." + d.status) +
+              (earns ? " · " + t("bank.earned", { v: U.cash(earns, { plain: true, currency: cur }) }) : "")) +
         "</div></div>" +
       (isOpen
         ? (ready
@@ -808,15 +857,22 @@
   function moneyRow(m, canUndo) {
     var undone = !!m.reversedBy;
     var kind = esc(t("kind." + m.kind));
-    /* The reason a parent typed is the headline where there is one; where there
-       is not, the kind of movement stands in for it — and is then not repeated
-       underneath. */
+    var src = S.source(m.source);
+    /* Headline, in order of what actually says the most: the reason somebody
+       typed, else where the money came from, else the kind of movement. */
+    var head = m.note ? U.trHtml(m, "note")
+             : src ? src.icon + " " + esc(t(src.key))
+             : kind;
+    var under = [];
+    if (m.note && src) under.push(src.icon + " " + esc(t(src.key)));
+    if (m.note || src) under.push(kind);
+    under.push(esc(U.fmtDateTime(m.ts)));
+    if (m.reverses) under.push(esc(t("undo.entry")));
     return '<li' + (undone ? ' class="paused"' : "") + '>' +
       '<div class="grow"><div class="title"' + (undone ? ' style="text-decoration:line-through"' : "") + ">" +
-        (m.note ? U.trHtml(m, "note") : kind) + "</div>" +
-      '<div class="sub">' + (m.note ? kind + " · " : "") + esc(U.fmtDateTime(m.ts)) +
-        (m.reverses ? " · " + esc(t("undo.entry")) : "") + "</div></div>" +
-      U.cash(m.amount, { sign: true }) +
+        head + "</div>" +
+      '<div class="sub">' + under.join(" · ") + "</div></div>" +
+      U.cash(m.amount, { sign: true, currency: S.curOf(m) }) +
       (canUndo && S.canReverse(m)
         ? '<button class="icon-btn" data-act="p.undo" data-id="' + m.id + '" title="' + esc(t("undo.do")) + '">↩️</button>'
         : "") +
@@ -868,16 +924,20 @@
 
   function moneyClaimRow(cl, c) {
     var out = cl.kind === "withdraw";
-    /* A child can ask for more than is there — points may have moved since. The
-       button is refused rather than hidden, so a parent can see what was asked. */
-    var covered = !out || S.cashBalance(c.id) >= S.num(cl.amount);
+    var cur = S.curOf(cl);
+    /* Against the account the child actually asked from: a euro request has
+       nothing to do with what is in their shekel account. A child can still ask
+       for more than is there, since money may have moved since — the button is
+       refused rather than hidden, so a parent can see what was asked. */
+    var covered = !out || S.cashBalance(c.id, cur) >= S.money(cl.amount);
     return "<li>" + U.childAvatar(c, 40) +
       '<div class="grow"><div class="title">' +
         esc(t(out ? "bank.pendingWithdraw" : "bank.pendingDeposit")) +
+        (S.source(cl.source) ? " · " + S.source(cl.source).icon + " " + esc(t(S.source(cl.source).key)) : "") +
         (cl.note ? " · " + U.trHtml(cl, "note") : "") + "</div>" +
       '<div class="sub" title="' + esc(t("child.requestedAt", { when: U.fmtDateTime(cl.ts) })) + '">' +
         U.name(c) + " · " + esc(U.relTime(cl.ts)) + "</div>" +
-      '<div class="sub">' + U.cash(out ? -cl.amount : cl.amount, { sign: true }) +
+      '<div class="sub">' + U.cash(out ? -cl.amount : cl.amount, { sign: true, currency: cur }) +
         (covered ? "" : ' <span class="tag bad">' + esc(t("bank.tooMuch")) + "</span>") + "</div></div>" +
       '<div class="row tight nowrap">' +
         '<button class="btn small good" data-act="p.claim" data-id="' + cl.id + '" data-ok="1"' +
@@ -1150,9 +1210,11 @@
     var pin = U.el("#cnPin", form).value.replace(/\D/g, "");
     if (pin && pin.length !== 4) return U.toast(t("setup.errPin"), "bad");
     var clearPin = U.el("#cnPinClear", form);
+    var saving = (U.el("#cnSaving", form) || {}).value;
     if (d.id) {
       S.updateChild(d.id, { name: name, names: S.clone(editingNames), birthday: birthday,
                             avatar: editingAvatar, color: editingColor, lang: editingLang });
+      if (saving !== undefined) S.setSavingsNote(d.id, saving.trim());
       if (clearPin && clearPin.checked) S.setChildPin(d.id, null);
       else if (pin) S.setChildPin(d.id, pin);
     } else {
@@ -1710,14 +1772,56 @@
   U.on("p.bankChild", function (d) { global.App.go({ tab: "bank", params: { childId: d.id } }); });
   U.on("p.bankBack", function () { global.App.go({ tab: "bank", params: {} }); });
 
-  function moveDialog(childId, kind) {
+  /* Paying in is how an account in a new currency comes into being, so the
+     choice is offered even when the child has only ever held one. Taking out is
+     limited to the accounts they actually have. */
+  function currencyChips(action, selected, only) {
+    var list = only || S.currencies;
+    if (list.length < 2) return '<input type="hidden" id="curPick" value="' + list[0] + '">';
+    return '<div class="field"><span class="field-label">' + esc(t("bank.forCurrency")) + "</span>" +
+      '<div class="chips" id="curRow">' + list.map(function (code) {
+        return '<button type="button" class="chip' + (code === selected ? " on" : "") +
+          '" data-act="' + action + '" data-code="' + code + '">' +
+          U.currencySymbol(code) + " " + code + "</button>";
+      }).join("") + '</div><input type="hidden" id="curPick" value="' + selected + '"></div>';
+  }
+  /* Only on the way in: money going out already has the note beside it, and
+     "where it came from" means nothing for a withdrawal. */
+  function sourceChips(action, selected) {
+    return '<div class="field"><span class="field-label">' + esc(t("bank.source")) + "</span>" +
+      '<div class="chips" id="srcRow">' + S.sources.map(function (x) {
+        return '<button type="button" class="chip' + (x.id === selected ? " on" : "") +
+          '" data-act="' + action + '" data-src="' + x.id + '">' +
+          x.icon + " " + esc(t(x.key)) + "</button>";
+      }).join("") + '</div><input type="hidden" id="srcPick" value="' + (selected || "") + '"></div>';
+  }
+  function pickSource(d) {
+    var box = U.el("#srcPick");
+    /* Tapping the one already chosen clears it — the source is optional. */
+    var next = box.value === d.src ? "" : d.src;
+    box.value = next;
+    U.els("#srcRow .chip").forEach(function (b) { b.classList.toggle("on", b.dataset.src === next); });
+  }
+  U.on("p.moveSrc", pickSource);
+  U.on("c.moveSrc", pickSource);
+
+  U.on("p.moveCur", function (d) {
+    U.el("#curPick").value = d.code;
+    U.els("#curRow .chip").forEach(function (b) { b.classList.toggle("on", b.dataset.code === d.code); });
+  });
+
+  function moveDialog(childId, kind, cur) {
     var c = S.child(childId);
     var out = kind === "withdraw";
+    cur = cur || S.currency();
     U.modal(t(out ? "bank.withdraw" : "bank.deposit") + " · " + S.nameOf(c),
       '<form data-act="p.bankMove" data-id="' + c.id + '" data-kind="' + kind + '">' +
-        (out ? '<p class="lead">' + esc(t("bank.cash")) + " " + U.cash(S.cashBalance(c.id), { plain: true }) + "</p>" : "") +
-        '<div class="field"><label for="mAmount">' + esc(t("bank.amount")) + " (" + U.currencySymbol() + ")</label>" +
+        currencyChips("p.moveCur", cur, out ? S.currenciesFor(c.id) : null) +
+        (out ? '<p class="lead">' + esc(t("bank.cash")) + " " +
+               U.cash(S.cashBalance(c.id, cur), { plain: true, currency: cur }) + "</p>" : "") +
+        '<div class="field"><label for="mAmount">' + esc(t("bank.amount")) + "</label>" +
           '<input id="mAmount" type="number" min="0.01" step="0.01" inputmode="decimal"></div>' +
+        (out ? "" : sourceChips("p.moveSrc", "")) +
         '<div class="field"><label for="mNote">' + esc(t("bank.reason")) + "</label>" +
           '<input id="mNote" type="text">' +
           '<div class="hint">' + esc(t("bank.reasonHint")) + "</div></div>" +
@@ -1726,15 +1830,17 @@
       "</form>",
       function (body) { var box = U.el("#mAmount", body); if (box) box.focus(); });
   }
-  U.on("p.bankIn", function (d) { moveDialog(d.id, "deposit"); });
-  U.on("p.bankOut", function (d) { moveDialog(d.id, "withdraw"); });
+  U.on("p.bankIn", function (d) { moveDialog(d.id, "deposit", d.cur); });
+  U.on("p.bankOut", function (d) { moveDialog(d.id, "withdraw", d.cur); });
   U.on("p.bankMove", function (d, form) {
     var amount = S.money(U.el("#mAmount", form).value);
     var note = U.el("#mNote", form).value.trim();
     if (!amount || amount <= 0) return U.toast(t("bank.amount"), "bad");
+    var cur = (U.el("#curPick", form) || {}).value || S.currency();
+    var src = (U.el("#srcPick", form) || {}).value || "";
     var done = d.kind === "withdraw"
-      ? S.withdraw(d.id, amount, note, me().id)
-      : S.deposit(d.id, amount, note, me().id);
+      ? S.withdraw(d.id, amount, note, me().id, cur)
+      : S.deposit(d.id, amount, note, me().id, cur, src);
     if (!done) return U.toast(t("bank.tooMuch"), "bad");
     U.closeModal();
     U.toast(t("common.saved"), "good");
@@ -1746,10 +1852,18 @@
 
   var typeDraft = null;
   function typeDialog(existing) {
-    typeDraft = existing ? S.clone(existing) : { id: "", name: "", termDays: 30, ratePct: 2, earlyExit: true, active: true };
+    typeDraft = existing ? S.clone(existing)
+      : { id: "", name: "", cur: newTypeCur || S.currency(), termDays: 30, ratePct: 2, earlyExit: true, active: true };
     var d = typeDraft;
     U.modal(existing ? t("common.edit") : t("bank.newType"),
       '<form data-act="p.typeSave" data-id="' + (d.id || "") + '">' +
+        '<div class="field"><span class="field-label">' + esc(t("bank.forCurrency")) + "</span>" +
+          '<div class="chips" id="typeCurRow">' + S.currencies.map(function (code) {
+            return '<button type="button" class="chip' + (S.curOf(d) === code ? " on" : "") +
+              '" data-act="p.typeCur" data-code="' + code + '">' +
+              U.currencySymbol(code) + " " + code + "</button>";
+          }).join("") + '</div>' +
+          '<input type="hidden" id="tyCur" value="' + S.curOf(d) + '"></div>' +
         '<div class="field"><label for="tyName">' + esc(t("bank.typeName")) + "</label>" +
           '<input id="tyName" type="text" value="' + esc(d.nameKey && !d.name ? t(d.nameKey) : (d.name || "")) + '"></div>' +
         '<div class="grid-2 keep">' +
@@ -1764,13 +1878,19 @@
         '<button class="btn block mt" type="submit">' + esc(t("common.save")) + "</button>" +
       "</form>");
   }
-  U.on("p.typeNew", function () { typeDialog(null); });
+  var newTypeCur = null;
+  U.on("p.typeNew", function (d) { newTypeCur = d.cur || null; typeDialog(null); });
+  U.on("p.typeCur", function (d) {
+    U.el("#tyCur").value = d.code;
+    U.els("#typeCurRow .chip").forEach(function (b) { b.classList.toggle("on", b.dataset.code === d.code); });
+  });
   U.on("p.typeEdit", function (d) { typeDialog(S.depositType(d.id)); });
   U.on("p.typeSave", function (d, form) {
     var typed = U.el("#tyName", form).value.trim();
     var existing = d.id ? S.depositType(d.id) : null;
     var patch = {
       id: d.id || "",
+      cur: (U.el("#tyCur", form) || {}).value || S.currency(),
       termDays: U.el("#tyDays", form).value,
       ratePct: U.el("#tyRate", form).value,
       earlyExit: U.el("#tyExit", form).checked,
@@ -1807,8 +1927,11 @@
   U.on("p.bankSettings", function (d, form) {
     var s = S.get();
     if (currencyDraft) s.settings.currency = currencyDraft;
-    s.settings.pointsPerUnit = Math.max(0, Math.round(S.num(U.el("#bRate", form).value)));
     S.save();
+    S.currencies.forEach(function (code) {
+      var box = U.el("#bRate-" + code, form);
+      if (box) S.setConversionRate(code, box.value);
+    });
     currencyDraft = null;
     U.toast(t("common.saved"), "good");
     global.App.refresh();
@@ -1816,13 +1939,29 @@
 
   /* ---- opening and closing deposits on a child's behalf ---- */
 
-  function openDepositDialog(childId, asChild) {
+  function openDepositDialog(childId, asChild, cur) {
     var c = S.child(childId);
-    var types = S.depositTypes().filter(function (x) { return x.active !== false; });
-    if (!types.length) return U.toast(t("bank.noTypes"), "bad");
+    /* Only currencies the child actually has money in, and only those with a
+       product to put it in. */
+    var usable = S.currenciesFor(c.id).filter(function (code) {
+      return S.cashBalance(c.id, code) > 0 &&
+        S.depositTypes(code).some(function (x) { return x.active !== false; });
+    });
+    if (!usable.length) return U.toast(t("bank.noTypes"), "bad");
+    cur = usable.indexOf(cur) === -1 ? usable[0] : cur;
+    var types = S.depositTypes(cur).filter(function (x) { return x.active !== false; });
+
     U.modal(t("bank.openDeposit"),
-      '<form data-act="' + (asChild ? "c" : "p") + '.depSave" data-id="' + c.id + '">' +
-        '<p class="lead">' + esc(t("bank.cash")) + " " + U.cash(S.cashBalance(c.id), { plain: true }) + "</p>" +
+      (usable.length > 1
+        ? '<div class="chips mb">' + usable.map(function (code) {
+            return '<button type="button" class="chip' + (code === cur ? " on" : "") +
+              '" data-act="' + (asChild ? "c" : "p") + '.depCur" data-id="' + c.id +
+              '" data-code="' + code + '">' + U.currencySymbol(code) + " " + code + "</button>";
+          }).join("") + "</div>"
+        : "") +
+      '<form data-act="' + (asChild ? "c" : "p") + '.depSave" data-id="' + c.id + '" data-cur="' + cur + '">' +
+        '<p class="lead">' + esc(t("bank.cash")) + " " +
+          U.cash(S.cashBalance(c.id, cur), { plain: true, currency: cur }) + "</p>" +
         '<div class="field"><span class="field-label">' + esc(t("bank.chooseType")) + "</span>" +
           '<div class="stack">' + types.map(function (x, i) {
             return '<label class="row tight" style="align-items:flex-start">' +
@@ -1833,12 +1972,13 @@
                   esc(t("bank.ratePct", { n: U.iso(x.ratePct) })) + " · " +
                   esc(x.earlyExit ? t("bank.earlyExit") : t("bank.locked1")) + "</small></span></label>";
           }).join("") + "</div></div>" +
-        '<div class="field"><label for="dAmount">' + esc(t("bank.amount")) + " (" + U.currencySymbol() + ")</label>" +
+        '<div class="field"><label for="dAmount">' + esc(t("bank.amount")) + " (" + U.currencySymbol(cur) + ")</label>" +
           '<input id="dAmount" type="number" min="0.01" step="0.01" inputmode="decimal"></div>' +
         '<button class="btn block" type="submit">' + esc(t("bank.openDeposit")) + "</button>" +
       "</form>");
   }
   U.on("p.depNew", function (d) { openDepositDialog(d.id, false); });
+  U.on("p.depCur", function (d) { openDepositDialog(d.id, false, d.code); });
   U.on("p.depSave", function (d, form) {
     var typeId = (form.querySelector('input[name="dtype"]:checked') || {}).value;
     var amount = S.money(U.el("#dAmount", form).value);
@@ -1902,6 +2042,7 @@
   global.ParentView = {
     render: render,
     accountCard: accountCard, depositsCard: depositsCard, moneyHistoryCard: moneyHistoryCard,
-    openDepositDialog: openDepositDialog, closeDepositNow: closeDepositNow
+    openDepositDialog: openDepositDialog, closeDepositNow: closeDepositNow,
+    sourceChips: sourceChips
   };
 })(window);

@@ -126,8 +126,8 @@
         movieDay: 6,
         translate: true,
         /* the bank */
-        currency: "EUR",
-        pointsPerUnit: 0,          /* 0 = points cannot be turned into money */
+        currency: "ILS",
+        pointsPerUnit: {},         /* per currency; empty = no conversion offered */
         depositTypes: []
       },
       parents: [],
@@ -198,9 +198,28 @@
     if (!s.money) s.money = [];
     if (!s.deposits) s.deposits = [];
     if (s.settings) {
-      if (!s.settings.currency) s.settings.currency = "EUR";
-      if (s.settings.pointsPerUnit === undefined) s.settings.pointsPerUnit = 0;
+      /* The bank used to work in one currency for the whole family, and that
+         currency defaulted to the euro. Shekels are the default now. Switching
+         a family over is only safe while nothing has been banked yet — after
+         that the amounts already written mean what they meant, so the family
+         keeps its currency and can change it in settings. */
+      var used = s.money.length || s.deposits.length;
+      if (!s.settings.currency) s.settings.currency = "ILS";
+      else if (!used && s.settings.currency === "EUR") s.settings.currency = "ILS";
+      if (s.settings.pointsPerUnit === undefined) s.settings.pointsPerUnit = {};
+      if (typeof s.settings.pointsPerUnit === "number") {
+        var was = s.settings.pointsPerUnit;
+        s.settings.pointsPerUnit = {};
+        if (was) s.settings.pointsPerUnit[s.settings.currency] = was;
+      }
       if (!s.settings.depositTypes) s.settings.depositTypes = [];
+      /* Anything written before currencies existed was in the family's own. */
+      s.settings.depositTypes.forEach(function (d) { if (!d.cur) d.cur = s.settings.currency; });
+      s.money.forEach(function (m) { if (!m.cur) m.cur = s.settings.currency; });
+      s.deposits.forEach(function (d) { if (!d.cur) d.cur = s.settings.currency; });
+      s.claims.forEach(function (c) {
+        if ((c.kind === "deposit" || c.kind === "withdraw") && !c.cur) c.cur = s.settings.currency;
+      });
     }
     if (!s.categories || !s.categories.length) s.categories = defaultCategories();
     if (s.settings && s.settings.movieDay === undefined) s.settings.movieDay = 6;
@@ -726,8 +745,8 @@
     }
     if (approve && (c.kind === "deposit" || c.kind === "withdraw")) {
       var moved = c.kind === "deposit"
-        ? deposit(c.childId, c.amount, c.note, byParentId)
-        : withdraw(c.childId, c.amount, c.note, byParentId);
+        ? deposit(c.childId, c.amount, c.note, byParentId, c.cur, c.source)
+        : withdraw(c.childId, c.amount, c.note, byParentId, c.cur);
       if (!moved) return null;          // a withdrawal the account cannot cover
       c.moneyId = moved.id;
     }
@@ -870,7 +889,43 @@
   function moneyLedger() { return (state.money = state.money || []); }
   function depositList() { return (state.deposits = state.deposits || []); }
 
-  function currency() { return (state.settings && state.settings.currency) || "EUR"; }
+  var CURRENCIES = ["ILS", "EUR"];
+
+  /* Where money paid in came from. Kept as a short list rather than free text
+     so a year of entries can be read back at a glance — the note beside it is
+     still there for anything this does not cover. */
+  var SOURCES = [
+    { id: "allowance",    key: "src.allowance",    icon: "\u{1F4B0}" },
+    { id: "gift",         key: "src.gift",         icon: "\u{1F381}" },
+    { id: "birthday",     key: "src.birthday",     icon: "\u{1F382}" },
+    { id: "holiday",      key: "src.holiday",      icon: "\u{1F38A}" },
+    { id: "grandparents", key: "src.grandparents", icon: "\u{1F475}" },
+    { id: "work",         key: "src.work",         icon: "\u{1F9F9}" },
+    { id: "sold",         key: "src.sold",         icon: "\u{1F3F7}\uFE0F" },
+    { id: "saved",        key: "src.saved",        icon: "\u{1F437}" },
+    { id: "other",        key: "src.other",        icon: "\u2728" }
+  ];
+  function source(id) { return byId(SOURCES, id); }
+
+  /* The currency a family works in by default. Money is not held in it alone:
+     every entry and every deposit carries its own, so a child who is handed
+     euros gets a euro account beside the shekel one rather than a number in the
+     wrong units. */
+  function currency() { return (state.settings && state.settings.currency) || "ILS"; }
+  function curOf(x) { return (x && x.cur) || currency(); }
+
+  /* Which accounts a child actually has: the family default always, plus any
+     other currency they have been given or put away. */
+  function currenciesFor(childId) {
+    var out = [currency()];
+    moneyLedger().forEach(function (m) {
+      if (m.childId === childId && m.cur && out.indexOf(m.cur) === -1) out.push(m.cur);
+    });
+    depositList().forEach(function (d) {
+      if (d.childId === childId && d.cur && out.indexOf(d.cur) === -1) out.push(d.cur);
+    });
+    return out;
+  }
 
   /* Money is held to the cent so a rate like 137 points to the euro cannot
      leak fractions into a balance nobody can hand over. */
@@ -887,38 +942,44 @@
 
   /* A balance is what is on hand — money inside an open deposit is locked away
      and is reported separately, so a child can see both. */
-  function cashBalance(childId) {
+  function cashBalance(childId, cur) {
+    cur = cur || currency();
     return money(moneyLedger().reduce(function (sum, m) {
-      return m.childId === childId && !m.void ? sum + dec(m.amount) : sum;
+      return m.childId === childId && curOf(m) === cur && !m.void ? sum + dec(m.amount) : sum;
     }, 0));
   }
-  function lockedBalance(childId) {
+  function lockedBalance(childId, cur) {
+    cur = cur || currency();
     return money(depositList().reduce(function (sum, d) {
-      return d.childId === childId && d.status === "open" ? sum + dec(d.amount) : sum;
+      return d.childId === childId && curOf(d) === cur && d.status === "open" ? sum + dec(d.amount) : sum;
     }, 0));
   }
-  function moneyTotal(childId) { return money(cashBalance(childId) + lockedBalance(childId)); }
+  function moneyTotal(childId, cur) { return money(cashBalance(childId, cur) + lockedBalance(childId, cur)); }
 
-  function moneyFor(childId) {
-    return moneyLedger().filter(function (m) { return m.childId === childId; })
-      .slice().sort(function (a, b) { return a.ts < b.ts ? 1 : -1; });
+  function moneyFor(childId, cur) {
+    return moneyLedger().filter(function (m) {
+      return m.childId === childId && (!cur || curOf(m) === cur);
+    }).slice().sort(function (a, b) { return a.ts < b.ts ? 1 : -1; });
   }
 
   /* ---- what a parent does directly ---- */
 
-  function deposit(childId, amount, note, byParentId) {
+  function deposit(childId, amount, note, byParentId, cur, src) {
     var v = money(Math.abs(dec(amount)));
     if (!v) return null;
-    var entry = { childId: childId, kind: "deposit", amount: v, note: note || "", by: byParentId || null };
+    var entry = { childId: childId, kind: "deposit", amount: v, cur: cur || currency(),
+                  source: source(src) ? src : "", note: note || "", by: byParentId || null };
     if (entry.note) stamp(entry, "note");
     return moneyRecord(entry);
   }
 
-  function withdraw(childId, amount, note, byParentId) {
+  function withdraw(childId, amount, note, byParentId, cur) {
+    cur = cur || currency();
     var v = money(Math.abs(dec(amount)));
     if (!v) return null;
-    if (v > cashBalance(childId)) return null;      // never let an account go under
-    var entry = { childId: childId, kind: "withdraw", amount: -v, note: note || "", by: byParentId || null };
+    if (v > cashBalance(childId, cur)) return null;   // never let an account go under
+    var entry = { childId: childId, kind: "withdraw", amount: -v, cur: cur,
+                  note: note || "", by: byParentId || null };
     if (entry.note) stamp(entry, "note");
     return moneyRecord(entry);
   }
@@ -927,22 +988,36 @@
      `pointsPerUnit` is how many points buy one euro or one shekel. Zero or
      blank means the family has not opened that door, and the button is not
      offered at all. */
-  function conversionRate() { return Math.max(0, Math.round(num(state.settings.pointsPerUnit))); }
-  function pointsToMoney(points) {
-    var rate = conversionRate();
+  function rateTable() {
+    var r = state.settings.pointsPerUnit;
+    /* It used to be a single number for a single family currency. */
+    if (typeof r === "number") {
+      r = {}; r[currency()] = Math.max(0, Math.round(state.settings.pointsPerUnit));
+      state.settings.pointsPerUnit = r;
+    }
+    return (state.settings.pointsPerUnit = r || {});
+  }
+  function conversionRate(cur) { return Math.max(0, Math.round(num(rateTable()[cur || currency()]))); }
+  function setConversionRate(cur, points) {
+    rateTable()[cur || currency()] = Math.max(0, Math.round(num(points)));
+    save();
+  }
+  function pointsToMoney(points, cur) {
+    var rate = conversionRate(cur);
     return rate ? money(num(points) / rate) : 0;
   }
-  function convert(childId, points, byParentId) {
-    var rate = conversionRate();
+  function convert(childId, points, byParentId, cur) {
+    cur = cur || currency();
+    var rate = conversionRate(cur);
     var p = Math.abs(Math.round(num(points)));
     if (!rate || !p) return null;
     if (p > balance(childId)) return null;
-    var value = pointsToMoney(p);
+    var value = pointsToMoney(p, cur);
     if (!value) return null;
     /* Two entries, one act: the points leave the points ledger and the money
        arrives in the money ledger, each carrying the other's id so the pair can
        be undone together. */
-    var cash = moneyRecord({ childId: childId, kind: "convert", amount: value,
+    var cash = moneyRecord({ childId: childId, kind: "convert", amount: value, cur: cur,
                              points: p, note: "", by: byParentId || null });
     var spent = record({ childId: childId, taskId: null, kind: "convert",
                          self: -p, group: 0, note: "", by: byParentId || null, moneyId: cash.id });
@@ -955,7 +1030,10 @@
      A family writes its own: a term in days, a yearly rate, and whether the
      money can be taken out before the term is up. A year at 5% with the door
      locked, or a day at 0.5% with the door always open. */
-  function depositTypes() { return (state.settings.depositTypes = state.settings.depositTypes || []); }
+  function depositTypes(cur) {
+    var all = (state.settings.depositTypes = state.settings.depositTypes || []);
+    return cur ? all.filter(function (d) { return curOf(d) === cur; }) : all;
+  }
   function depositType(id) { return byId(depositTypes(), id); }
 
   function saveDepositType(data) {
@@ -963,6 +1041,7 @@
     var existing = data.id ? byId(list, data.id) : null;
     var type = existing || { id: uid("dpt") };
     type.name = data.name || "";
+    type.cur = CURRENCIES.indexOf(data.cur) === -1 ? currency() : data.cur;
     type.termDays = Math.max(1, Math.round(num(data.termDays)) || 1);
     type.ratePct = Math.max(0, dec(data.ratePct));
     type.earlyExit = !!data.earlyExit;
@@ -979,14 +1058,34 @@
   }
 
   function defaultDepositTypes() {
-    /* Named by key so each reads in the family's own language until a parent
-       renames one. Rates rise with the term, which is the whole lesson. */
-    return [
-      { id: uid("dpt"), nameKey: "bank.type.daily",   name: "", termDays: 1,   ratePct: 0.5, earlyExit: true,  active: true },
-      { id: uid("dpt"), nameKey: "bank.type.month",   name: "", termDays: 30,  ratePct: 2,   earlyExit: true,  active: true },
-      { id: uid("dpt"), nameKey: "bank.type.quarter", name: "", termDays: 90,  ratePct: 4,   earlyExit: false, active: true },
-      { id: uid("dpt"), nameKey: "bank.type.year",    name: "", termDays: 365, ratePct: 8,   earlyExit: false, active: true }
+    /* Modelled on what Israeli banks actually paid on shekel deposits in mid
+       2026, when the Bank of Israel rate was about 3.5-3.75%: roughly nothing
+       on money you can take out any day, then climbing with the term to a bit
+       over 4% for a year. The euro side follows the ECB deposit rate, about
+       2.25% at the same date, which is why a euro deposit pays visibly less
+       than a shekel one — that is real, and worth a child seeing.
+
+       These are a starting point, not advice. A parent can change every number,
+       and the family bank pays out of a parent's pocket, so the rates are
+       whatever the family decides they are.
+
+       Named by key so each reads in the family's own language until renamed. */
+    var seed = [
+      /* key                     cur    days  rate  early exit */
+      ["bank.type.daily",        "ILS",    1,  1.0, true],
+      ["bank.type.month",        "ILS",   30,  3.2, true],
+      ["bank.type.quarter",      "ILS",   90,  3.6, true],
+      ["bank.type.half",         "ILS",  180,  3.9, false],
+      ["bank.type.year",         "ILS",  365,  4.2, false],
+      ["bank.type.twoYears",     "ILS",  730,  4.1, false],
+      ["bank.type.euroDaily",    "EUR",    1,  2.0, true],
+      ["bank.type.euroQuarter",  "EUR",   90,  2.3, true],
+      ["bank.type.euroYear",     "EUR",  365,  2.6, false]
     ];
+    return seed.map(function (r) {
+      return { id: uid("dpt"), nameKey: r[0], name: "", cur: r[1],
+               termDays: r[2], ratePct: r[3], earlyExit: r[4], active: true };
+    });
   }
 
   /* ---- deposits ---- */
@@ -999,11 +1098,13 @@
 
   function openDeposit(childId, typeId, amount, byParentId) {
     var type = depositType(typeId);
+    if (!type) return null;
+    var cur = curOf(type);
     var v = money(Math.abs(dec(amount)));
-    if (!type || !v || v > cashBalance(childId)) return null;
+    if (!v || v > cashBalance(childId, cur)) return null;
     var opened = now();
     var d = {
-      id: uid("dep"), childId: childId, typeId: type.id,
+      id: uid("dep"), childId: childId, typeId: type.id, cur: cur,
       /* The terms are copied onto the deposit, not looked up later: changing a
          product must never rewrite an agreement already made with a child. */
       termDays: type.termDays, ratePct: type.ratePct, earlyExit: !!type.earlyExit,
@@ -1012,7 +1113,8 @@
       status: "open", closedTs: null, interestPaid: 0, by: byParentId || null
     };
     depositList().push(d);
-    moneyRecord({ childId: childId, kind: "lock", amount: -v, note: "", by: byParentId || null, depositId: d.id });
+    moneyRecord({ childId: childId, kind: "lock", amount: -v, cur: cur, note: "",
+                  by: byParentId || null, depositId: d.id });
     return d;
   }
 
@@ -1041,13 +1143,13 @@
     d.status = full ? "matured" : "broken";
     d.closedTs = at;
     d.interestPaid = gain;
-    moneyRecord({ childId: d.childId, kind: "unlock", amount: dec(d.amount), ts: at,
+    moneyRecord({ childId: d.childId, kind: "unlock", amount: dec(d.amount), cur: curOf(d), ts: at,
                   note: "", by: byParentId || null, depositId: d.id });
     if (gain) {
       /* A fixed id, derived from the deposit, so two phones closing the same
          deposit write the same row and the merge keeps one, not two. */
       moneyRecord({ id: "int_" + d.id, childId: d.childId, kind: "interest", amount: gain,
-                    ts: at, note: "", by: byParentId || null, depositId: d.id });
+                    cur: curOf(d), ts: at, note: "", by: byParentId || null, depositId: d.id });
     }
     save();
     return d;
@@ -1066,12 +1168,13 @@
 
   /* ---- what a child asks for ---- */
 
-  function requestMoney(childId, kind, amount, note) {
+  function requestMoney(childId, kind, amount, note, cur, src) {
     var v = money(Math.abs(dec(amount)));
     if (!v || (kind !== "deposit" && kind !== "withdraw")) return null;
     var claim = {
       id: uid("clm"), kind: kind, childId: childId, taskId: null, rewardId: null,
-      amount: v, note: note || "", ts: now(), dayKey: dayKey(),
+      amount: v, cur: cur || currency(), source: source(src) ? src : "",
+      note: note || "", ts: now(), dayKey: dayKey(),
       status: "pending", decidedBy: null, decidedTs: null
     };
     if (claim.note) stamp(claim, "note");
@@ -1111,7 +1214,7 @@
       var cash = byId(moneyLedger(), led.moneyId);
       if (cash && !cash.reversedBy) {
         var pair = moneyRecord({ childId: cash.childId, kind: "reversal", amount: -dec(cash.amount),
-                                 note: "", by: byParentId || null, reverses: cash.id });
+                                 cur: curOf(cash), note: "", by: byParentId || null, reverses: cash.id });
         cash.reversedBy = pair.id;
       }
     }
@@ -1121,7 +1224,7 @@
   function reverseMoney(mny, byParentId) {
     if (mny.reversedBy || mny.kind === "lock" || mny.kind === "unlock") return null;
     var back = moneyRecord({ childId: mny.childId, kind: "reversal", amount: -dec(mny.amount),
-                             note: "", by: byParentId || null, reverses: mny.id });
+                             cur: curOf(mny), note: "", by: byParentId || null, reverses: mny.id });
     mny.reversedBy = back.id;
     if (mny.ledgerId) {
       var pts = byId(state.ledger, mny.ledgerId);
@@ -1218,10 +1321,13 @@
     uid: uid, now: now, dayKey: dayKey, clone: clone, num: num, dec: dec,
 
     /* the bank */
-    currency: currency, money: money, moneyFor: moneyFor,
+    currency: currency, currencies: CURRENCIES, curOf: curOf, currenciesFor: currenciesFor,
+    sources: SOURCES, source: source,
+    money: money, moneyFor: moneyFor,
     cashBalance: cashBalance, lockedBalance: lockedBalance, moneyTotal: moneyTotal,
     deposit: deposit, withdraw: withdraw,
-    conversionRate: conversionRate, pointsToMoney: pointsToMoney, convert: convert,
+    conversionRate: conversionRate, setConversionRate: setConversionRate,
+    pointsToMoney: pointsToMoney, convert: convert,
     depositTypes: depositTypes, depositType: depositType, saveDepositType: saveDepositType,
     deleteDepositType: deleteDepositType, defaultDepositTypes: defaultDepositTypes,
     deposits: deposits, depositById: depositById, openDeposit: openDeposit,

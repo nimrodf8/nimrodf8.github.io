@@ -247,11 +247,22 @@ ask — a request with an amount and a reason, which lands in Approvals beside
 chores and rewards, and moves nothing until a parent agrees. A withdrawal is
 refused if the account cannot cover it, whoever asks.
 
-**Deposits.** A family writes its own kinds: a term in days, a yearly rate, and
-whether the money may come out early. A new family starts with four — a day at
-0.5%, a month at 2%, three months at 4% locked, and a year at 8% locked — so
-the lesson is visible before anything is configured. Money inside a deposit
-leaves the spendable balance and is reported separately.
+**Two currencies.** The family works in shekels by default, but currency belongs
+to each entry and each deposit rather than to the family. A child holds a shekel
+account always, and a euro account appears the moment somebody actually gives
+them euros — nothing to switch on. Balances, deposits, withdrawals and interest
+are each judged against their own account: a euro withdrawal cannot be covered
+by a shekel balance.
+
+**Deposits.** A family writes its own kinds: a currency, a term in days, a yearly
+rate, and whether the money may come out early. A new family starts with nine,
+modelled on what Israeli banks actually paid on shekel deposits in mid-2026 —
+about 1% on money you can take out any day, climbing to roughly 4.2% for a year
+— and on the ECB deposit rate for the euro shelf, which is why a euro deposit
+visibly pays less than a shekel one. They are a starting point, not advice: the
+family bank pays out of a parent's pocket, so every number is editable, and the
+screen says so. Money inside a deposit leaves the spendable balance and is
+reported separately.
 
 Interest is simple, not compound: the yearly rate for the days the money
 actually sat there, which a child can check with a calculator. Breaking a
@@ -266,8 +277,9 @@ merge keeps one.
 **Privacy.** A child sees their own money and no one else's — not a sibling's
 balance, not their name. Parents see everything, because parents are holding it.
 
-**Points into money.** Off by default. A parent sets how many points buy one
-euro or shekel, and only then is the option offered. Converting writes two
+**Points into money.** Off by default, and set per currency: a parent says how
+many points buy one shekel and how many buy one euro, and each rate is offered
+only once it is set. Converting writes two
 linked entries, one in each ledger, and undoing either undoes both.
 
 **Undo.** Nothing is ever deleted. Undoing writes a reversal entry pointing back

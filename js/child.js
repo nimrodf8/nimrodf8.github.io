@@ -314,34 +314,41 @@
             (r.note ? " · " + U.trHtml(r, "note") : "") + "</div>" +
           '<div class="sub" title="' + esc(t("child.requestedAt", { when: U.fmtDateTime(r.ts) })) + '">' +
             esc(U.fmtDateTime(r.ts)) + "</div></div>" +
-          U.cash(r.kind === "deposit" ? r.amount : -r.amount, { sign: true }) + "</li>";
+          U.cash(r.kind === "deposit" ? r.amount : -r.amount,
+                 { sign: true, currency: S.curOf(r) }) + "</li>";
       }).join("") + "</ul></div>";
     }
 
     /* Only offered when a parent has set a rate. */
-    if (S.conversionRate() > 0 && S.balance(c.id) > 0) {
+    var canConvert = S.currencies.filter(function (cur) { return S.conversionRate(cur) > 0; });
+    if (canConvert.length && S.balance(c.id) > 0) {
       html += '<div class="card"><div class="eyebrow">' + esc(t("bank.rateTitle")) + "</div>" +
-        '<div class="row between nowrap"><span>' +
-          esc(t("bank.convertWorth", {
-            p: U.iso(S.conversionRate()), v: U.cash(1, { plain: true })
-          })) + "</span>" +
-        '<button class="btn small soft" data-act="c.convert">' + esc(t("bank.convert")) + "</button></div></div>";
+        canConvert.map(function (cur) {
+          return '<div class="row between nowrap" style="margin-bottom:6px"><span>' +
+            esc(t("bank.convertWorth", {
+              p: U.iso(S.conversionRate(cur)), v: U.cash(1, { plain: true, currency: cur })
+            })) + "</span>" +
+            '<button class="btn small soft" data-act="c.convert" data-cur="' + cur + '">' +
+              esc(t("bank.convert")) + "</button></div>";
+        }).join("") + "</div>";
     }
 
-    html += savingNoteCard(c);
+    html += savingNoteRow(c);
     html += P.depositsCard(c, true);
     html += P.moneyHistoryCard(c, false);
     return html + "</div>";
   }
 
-  function savingNoteCard(c) {
-    return '<div class="section-title">' + esc(t("bank.savingFor")) + "</div>" +
-      '<div class="card"><form data-act="c.savingNote" class="row tight nowrap">' +
+  /* A single line rather than a card of its own: it lives in the child's
+     settings now, where a parent edits it too, and this is just the child's own
+     way in. */
+  function savingNoteRow(c) {
+    return '<div class="card"><form data-act="c.savingNote" class="row tight nowrap">' +
+        '<span title="' + esc(t("bank.savingFor")) + '">\u{1F3AF}</span>' +
         '<input type="text" name="text" class="grow" value="' + esc(c.savingsNote || "") +
           '" placeholder="' + esc(t("bank.savingForShort")) + '">' +
         '<button class="btn small" type="submit">' + esc(t("common.save")) + "</button>" +
-      "</form>" +
-      '<div class="hint">' + esc(t("bank.savingForHint")) + "</div></div>";
+      "</form></div>";
   }
 
   /* The bar on the child's own page: one reward, chosen by a parent, filling
@@ -364,12 +371,15 @@
   U.on("c.bankAsk", function (d) {
     var c = me();
     var out = d.kind === "withdraw";
-    U.modal(t(out ? "bank.requestWithdraw" : "bank.requestDeposit"),
+    var cur = d.cur || S.currency();
+    U.modal(t(out ? "bank.requestWithdraw" : "bank.requestDeposit") + " · " + U.currencySymbol(cur) + " " + cur,
       '<p class="hint">' + esc(t("bank.requestHint")) + "</p>" +
-      '<form data-act="c.bankAskSave" data-kind="' + d.kind + '">' +
-        (out ? '<p class="lead">' + esc(t("bank.cash")) + " " + U.cash(S.cashBalance(c.id), { plain: true }) + "</p>" : "") +
-        '<div class="field"><label for="rAmount">' + esc(t("bank.amount")) + " (" + U.currencySymbol() + ")</label>" +
+      '<form data-act="c.bankAskSave" data-kind="' + d.kind + '" data-cur="' + cur + '">' +
+        (out ? '<p class="lead">' + esc(t("bank.cash")) + " " +
+               U.cash(S.cashBalance(c.id, cur), { plain: true, currency: cur }) + "</p>" : "") +
+        '<div class="field"><label for="rAmount">' + esc(t("bank.amount")) + " (" + U.currencySymbol(cur) + ")</label>" +
           '<input id="rAmount" type="number" min="0.01" step="0.01" inputmode="decimal"></div>' +
+        (out ? "" : global.ParentView.sourceChips("c.moveSrc", "")) +
         '<div class="field"><label for="rNote">' + esc(t("bank.reason")) + "</label>" +
           '<input id="rNote" type="text">' +
           '<div class="hint">' + esc(t("bank.reasonHint")) + "</div></div>" +
@@ -380,8 +390,10 @@
   U.on("c.bankAskSave", function (d, form) {
     var amount = S.money(U.el("#rAmount", form).value);
     if (!amount || amount <= 0) return U.toast(t("bank.amount"), "bad");
-    if (d.kind === "withdraw" && amount > S.cashBalance(me().id)) return U.toast(t("bank.tooMuch"), "bad");
-    S.requestMoney(me().id, d.kind, amount, U.el("#rNote", form).value.trim());
+    var cur = d.cur || S.currency();
+    if (d.kind === "withdraw" && amount > S.cashBalance(me().id, cur)) return U.toast(t("bank.tooMuch"), "bad");
+    S.requestMoney(me().id, d.kind, amount, U.el("#rNote", form).value.trim(), cur,
+                   (U.el("#srcPick", form) || {}).value || "");
     U.closeModal();
     U.toast(t("bank.requestSent"), "good");
     global.App.refresh();
@@ -397,7 +409,8 @@
   /* A child may open a deposit on their own: the money is already theirs and
      already with the parent, so nothing changes hands — it only stops being
      spendable for a while. Breaking one early is theirs to decide too. */
-  U.on("c.depNew", function (d) { global.ParentView.openDepositDialog(d.id, true); });
+  U.on("c.depNew", function (d) { global.ParentView.openDepositDialog(me().id, true); });
+  U.on("c.depCur", function (d) { global.ParentView.openDepositDialog(me().id, true, d.code); });
   U.on("c.depSave", function (d, form) {
     var typeId = (form.querySelector('input[name="dtype"]:checked') || {}).value;
     var amount = S.money(U.el("#dAmount", form).value);
@@ -411,12 +424,14 @@
     U.confirmDialog(t("bank.breakWarn"), function () { global.ParentView.closeDepositNow(d.id, true); });
   });
 
-  U.on("c.convert", function () {
-    var c = me(), rate = S.conversionRate();
+  U.on("c.convert", function (d) {
+    var c = me(), cur = d.cur || S.currency(), rate = S.conversionRate(cur);
     if (!rate) return U.toast(t("bank.convertOff"), "bad");
-    U.modal(t("bank.convert"),
-      '<p class="lead">' + esc(t("bank.convertWorth", { p: U.iso(rate), v: U.cash(1, { plain: true }) })) + "</p>" +
-      '<form data-act="c.convertSave">' +
+    U.modal(t("bank.convert") + " · " + U.currencySymbol(cur) + " " + cur,
+      '<p class="lead">' + esc(t("bank.convertWorth", {
+        p: U.iso(rate), v: U.cash(1, { plain: true, currency: cur })
+      })) + "</p>" +
+      '<form data-act="c.convertSave" data-cur="' + cur + '">' +
         '<div class="field"><label for="cvPoints">' + esc(t("bank.convertPoints")) + "</label>" +
           '<input id="cvPoints" type="number" min="1" step="1" max="' + S.balance(c.id) + '" value="' + rate + '">' +
           '<div class="hint" id="cvWorth"></div></div>' +
@@ -426,7 +441,8 @@
         var box = U.el("#cvPoints", body), out = U.el("#cvWorth", body);
         var show = function () {
           out.textContent = t("bank.convertWorth", {
-            p: U.iso(S.num(box.value)), v: U.cash(S.pointsToMoney(box.value), { plain: true })
+            p: U.iso(S.num(box.value)),
+            v: U.cash(S.pointsToMoney(box.value, cur), { plain: true, currency: cur })
           });
         };
         box.addEventListener("input", show);
@@ -436,7 +452,9 @@
   U.on("c.convertSave", function (d, form) {
     var points = S.num(U.el("#cvPoints", form).value);
     var c = me();
-    if (!S.convert(c.id, points, null)) return U.toast(t("rewards.short", { n: U.iso(points - S.balance(c.id)) }), "bad");
+    if (!S.convert(c.id, points, null, d.cur)) {
+      return U.toast(t("rewards.short", { n: U.iso(points - S.balance(c.id)) }), "bad");
+    }
     U.closeModal();
     U.toast(t("bank.converted"), "good");
     global.App.refresh();
