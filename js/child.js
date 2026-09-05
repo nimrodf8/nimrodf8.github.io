@@ -15,6 +15,7 @@
     if (tab === "rewards") return rewardsTab(c);
     if (tab === "group") return groupTab(c);
     if (tab === "notes") return notesTab(c);
+    if (tab === "bank") return bankTab(c);
     return meTab(c);
   }
 
@@ -38,6 +39,8 @@
             esc(t("dash.earnedThisWeek", { n: U.signed(S.weekEarned(c.id)) })) + "</span>" +
         "</div>" +
       "</div>";
+
+    html += goalCard(c);
 
     if (bd) {
       var label = bd.days === 0 ? t("dash.birthdayToday")
@@ -287,6 +290,157 @@
     S.claimReward(c.id, r.id);
     U.toast(t("tasks.claimSent"), "good");
     global.App.refresh();
+  });
+
+
+  /* ================= my money =================
+     A child sees their own account and nobody else's. Every button here asks a
+     parent rather than moving anything: the money is really in a parent's
+     pocket, and the app only keeps the record straight. */
+
+  function bankTab(c) {
+    var P = global.ParentView;
+    var waiting = S.moneyRequests(c.id).filter(function (r) { return r.status === "pending"; });
+
+    var html = '<div class="wrap"><h1>' + esc(t("bank.mine")) + "</h1>" +
+      P.accountCard(c, true) +
+      '<p class="hint">' + esc(t("bank.requestHint")) + "</p>";
+
+    if (waiting.length) {
+      html += '<div class="card flush"><ul class="list">' + waiting.map(function (r) {
+        return '<li><span class="rank-badge">⏳</span>' +
+          '<div class="grow"><div class="title">' +
+            esc(t(r.kind === "deposit" ? "bank.pendingDeposit" : "bank.pendingWithdraw")) +
+            (r.note ? " · " + U.trHtml(r, "note") : "") + "</div>" +
+          '<div class="sub" title="' + esc(t("child.requestedAt", { when: U.fmtDateTime(r.ts) })) + '">' +
+            esc(U.fmtDateTime(r.ts)) + "</div></div>" +
+          U.cash(r.kind === "deposit" ? r.amount : -r.amount, { sign: true }) + "</li>";
+      }).join("") + "</ul></div>";
+    }
+
+    /* Only offered when a parent has set a rate. */
+    if (S.conversionRate() > 0 && S.balance(c.id) > 0) {
+      html += '<div class="card"><div class="eyebrow">' + esc(t("bank.rateTitle")) + "</div>" +
+        '<div class="row between nowrap"><span>' +
+          esc(t("bank.convertWorth", {
+            p: U.iso(S.conversionRate()), v: U.cash(1, { plain: true })
+          })) + "</span>" +
+        '<button class="btn small soft" data-act="c.convert">' + esc(t("bank.convert")) + "</button></div></div>";
+    }
+
+    html += savingNoteCard(c);
+    html += P.depositsCard(c, true);
+    html += P.moneyHistoryCard(c, false);
+    return html + "</div>";
+  }
+
+  function savingNoteCard(c) {
+    return '<div class="section-title">' + esc(t("bank.savingFor")) + "</div>" +
+      '<div class="card"><form data-act="c.savingNote" class="row tight nowrap">' +
+        '<input type="text" name="text" class="grow" value="' + esc(c.savingsNote || "") +
+          '" placeholder="' + esc(t("bank.savingForShort")) + '">' +
+        '<button class="btn small" type="submit">' + esc(t("common.save")) + "</button>" +
+      "</form>" +
+      '<div class="hint">' + esc(t("bank.savingForHint")) + "</div></div>";
+  }
+
+  /* The bar on the child's own page: one reward, chosen by a parent, filling
+     up as the child earns. */
+  function goalCard(c) {
+    var g = S.childGoal(c.id);
+    if (!g) return "";
+    return '<div class="card"><div class="eyebrow">' + esc(t("goal.title")) + "</div>" +
+      '<div class="row between nowrap"><strong>' + (g.reward.icon || "🎁") + " " +
+        U.keyedTitleHtml(g.reward) + "</strong>" +
+        '<span class="tag' + (g.reached ? " good" : "") + '">' +
+          esc(g.reached ? t("goal.reached") : t("goal.toGo", { n: U.iso(g.missing) })) + "</span></div>" +
+      '<div class="meter kid" style="--kid:' + S.childColor(c) + '">' +
+        '<div class="meter-fill" style="width:' + g.pct + '%"></div></div>' +
+      "<small>" + S.num(g.have) + " / " + g.cost + "</small></div>";
+  }
+
+  /* ---- actions ---- */
+
+  U.on("c.bankAsk", function (d) {
+    var c = me();
+    var out = d.kind === "withdraw";
+    U.modal(t(out ? "bank.requestWithdraw" : "bank.requestDeposit"),
+      '<p class="hint">' + esc(t("bank.requestHint")) + "</p>" +
+      '<form data-act="c.bankAskSave" data-kind="' + d.kind + '">' +
+        (out ? '<p class="lead">' + esc(t("bank.cash")) + " " + U.cash(S.cashBalance(c.id), { plain: true }) + "</p>" : "") +
+        '<div class="field"><label for="rAmount">' + esc(t("bank.amount")) + " (" + U.currencySymbol() + ")</label>" +
+          '<input id="rAmount" type="number" min="0.01" step="0.01" inputmode="decimal"></div>' +
+        '<div class="field"><label for="rNote">' + esc(t("bank.reason")) + "</label>" +
+          '<input id="rNote" type="text">' +
+          '<div class="hint">' + esc(t("bank.reasonHint")) + "</div></div>" +
+        '<button class="btn block" type="submit">' + esc(t("bank.request")) + "</button>" +
+      "</form>",
+      function (body) { var box = U.el("#rAmount", body); if (box) box.focus(); });
+  });
+  U.on("c.bankAskSave", function (d, form) {
+    var amount = S.money(U.el("#rAmount", form).value);
+    if (!amount || amount <= 0) return U.toast(t("bank.amount"), "bad");
+    if (d.kind === "withdraw" && amount > S.cashBalance(me().id)) return U.toast(t("bank.tooMuch"), "bad");
+    S.requestMoney(me().id, d.kind, amount, U.el("#rNote", form).value.trim());
+    U.closeModal();
+    U.toast(t("bank.requestSent"), "good");
+    global.App.refresh();
+  });
+
+  U.on("c.savingNote", function (d, form) {
+    var text = form.querySelector('[name="text"]').value.trim();
+    S.setSavingsNote(me().id, text);
+    U.toast(t("common.saved"), "good");
+    global.App.refresh();
+  });
+
+  /* A child may open a deposit on their own: the money is already theirs and
+     already with the parent, so nothing changes hands — it only stops being
+     spendable for a while. Breaking one early is theirs to decide too. */
+  U.on("c.depNew", function (d) { global.ParentView.openDepositDialog(d.id, true); });
+  U.on("c.depSave", function (d, form) {
+    var typeId = (form.querySelector('input[name="dtype"]:checked') || {}).value;
+    var amount = S.money(U.el("#dAmount", form).value);
+    if (!S.openDeposit(me().id, typeId, amount, null)) return U.toast(t("bank.tooMuch"), "bad");
+    U.closeModal();
+    U.toast(t("common.saved"), "good");
+    global.App.refresh();
+  });
+  U.on("c.depClose", function (d) { global.ParentView.closeDepositNow(d.id, true); });
+  U.on("c.depBreak", function (d) {
+    U.confirmDialog(t("bank.breakWarn"), function () { global.ParentView.closeDepositNow(d.id, true); });
+  });
+
+  U.on("c.convert", function () {
+    var c = me(), rate = S.conversionRate();
+    if (!rate) return U.toast(t("bank.convertOff"), "bad");
+    U.modal(t("bank.convert"),
+      '<p class="lead">' + esc(t("bank.convertWorth", { p: U.iso(rate), v: U.cash(1, { plain: true }) })) + "</p>" +
+      '<form data-act="c.convertSave">' +
+        '<div class="field"><label for="cvPoints">' + esc(t("bank.convertPoints")) + "</label>" +
+          '<input id="cvPoints" type="number" min="1" step="1" max="' + S.balance(c.id) + '" value="' + rate + '">' +
+          '<div class="hint" id="cvWorth"></div></div>' +
+        '<button class="btn block" type="submit">' + esc(t("bank.convert")) + "</button>" +
+      "</form>",
+      function (body) {
+        var box = U.el("#cvPoints", body), out = U.el("#cvWorth", body);
+        var show = function () {
+          out.textContent = t("bank.convertWorth", {
+            p: U.iso(S.num(box.value)), v: U.cash(S.pointsToMoney(box.value), { plain: true })
+          });
+        };
+        box.addEventListener("input", show);
+        show();
+      });
+  });
+  U.on("c.convertSave", function (d, form) {
+    var points = S.num(U.el("#cvPoints", form).value);
+    var c = me();
+    if (!S.convert(c.id, points, null)) return U.toast(t("rewards.short", { n: U.iso(points - S.balance(c.id)) }), "bad");
+    U.closeModal();
+    U.toast(t("bank.converted"), "good");
+    global.App.refresh();
+    U.celebrate({ color: S.childColor(c) });
   });
 
   global.ChildView = { render: render };

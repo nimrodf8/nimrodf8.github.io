@@ -278,6 +278,22 @@
     handlers["confirm.yes"] = function () { closeModal(); onYes(); };
   }
 
+  /* ---- real money ----
+     Two decimal places always, the symbol before the number, and the whole
+     thing isolated so a euro amount keeps its own direction inside a Hebrew
+     sentence instead of coming out back to front. */
+  var SYMBOL = { EUR: "\u20ac", ILS: "\u20aa" };
+  function currencySymbol(code) { return SYMBOL[code || global.Store.currency()] || "\u20ac"; }
+  function cash(value, opts) {
+    var n = global.Store.money(value);
+    var sign = n < 0 ? "-" : (opts && opts.sign && n > 0 ? "+" : "");
+    var body = currencySymbol(opts && opts.currency) + Math.abs(n).toFixed(2);
+    var text = iso(sign + body);
+    if (opts && opts.plain) return text;
+    var cls = n > 0 ? "pos" : n < 0 ? "neg" : "zero";
+    return '<span class="pts ' + cls + (opts && opts.big ? " big" : "") + '">' + text + "</span>";
+  }
+
   /* ---- a balance that moves when it changes ----
      Every big number on screen is tagged with a key and its value. After a
      re-render, `animateScores` counts each one from where the reader last saw
@@ -285,10 +301,13 @@
      number climbing rather than as different text on a page that blinked. */
   function scoreEl(key, value, opts) {
     opts = opts || {};
+    var n = opts.money ? global.Store.money(value) : global.Store.num(value);
     return '<span class="score' + (opts.cls ? " " + opts.cls : "") + '"' +
       (opts.style ? ' style="' + opts.style + '"' : "") +
-      ' data-score="' + esc(key) + '" data-value="' + global.Store.num(value) + '"' +
-      (opts.cheer ? ' data-cheer="1"' : "") + ">" + global.Store.num(value) + "</span>";
+      ' data-score="' + esc(key) + '" data-value="' + n + '"' +
+      (opts.money ? ' data-money="1"' : "") +
+      (opts.cheer ? ' data-cheer="1"' : "") + ">" +
+      (opts.money ? cash(n, { plain: true }) : n) + "</span>";
   }
 
   var lastScores = {};
@@ -308,25 +327,29 @@
       var from = lastScores[key];
       lastScores[key] = to;
       if (from === undefined || from === to) return;
+      var asMoney = !!node.getAttribute("data-money");
 
       node.classList.add(to > from ? "up" : "down");
       setTimeout(function () { node.classList.remove("up", "down"); }, 900);
       if (node.getAttribute("data-cheer") && to > from) celebrate();
       if (reducedMotion()) return;
-      countTo(node, from, to);
+      countTo(node, from, to, asMoney);
     });
   }
 
-  function countTo(node, from, to) {
+  function countTo(node, from, to, asMoney) {
     var span = 620, started = null;
+    var show = asMoney
+      ? function (v) { return cash(v, { plain: true }); }
+      : function (v) { return Math.round(v); };
     if (node._count) global.cancelAnimationFrame(node._count);
     function frame(ts) {
       if (started === null) started = ts;
       var p = Math.min(1, (ts - started) / span);
       var eased = 1 - Math.pow(1 - p, 3);
-      node.textContent = Math.round(from + (to - from) * eased);
+      node.textContent = show(from + (to - from) * eased);
       if (p < 1) node._count = global.requestAnimationFrame(frame);
-      else { node.textContent = to; node._count = null; }
+      else { node.textContent = show(to); node._count = null; }
     }
     node._count = global.requestAnimationFrame(frame);
   }
@@ -401,6 +424,7 @@
     brandMark: brandMark, childAvatar: childAvatar, colorPicker: colorPicker,
     scoreEl: scoreEl, animateScores: animateScores, forgetScores: forgetScores,
     celebrate: celebrate, reducedMotion: reducedMotion, flash: flash,
+    cash: cash, currencySymbol: currencySymbol,
     name: name, familyName: familyName, nameLangChips: nameLangChips,
     nameField: nameField, switchNameLang: switchNameLang,
     iso: iso, signed: signed,

@@ -18,6 +18,7 @@
     if (tab === "rewards") return rewardsTab();
     if (tab === "kids") return params && params.childId ? childDetail(params.childId) : kidsTab();
     if (tab === "approvals") return approvalsTab();
+    if (tab === "bank") return params && params.childId ? bankChild(params.childId) : bankTab();
     return familyTab();
   }
 
@@ -503,6 +504,10 @@
           '<button class="btn ghost small" data-act="p.childEdit" data-id="' + c.id + '">✏️ ' + esc(t("kids.profile")) + "</button>" +
         "</div>" +
         '<div class="row gap mt" style="justify-content:center">' +
+          '<button class="btn soft small" data-act="p.goalSet" data-id="' + c.id + '">🎯 ' + esc(t("goal.set")) + "</button>" +
+          '<button class="btn soft small" data-act="p.bankChild" data-id="' + c.id + '">\u{1F3E6} ' + esc(t("bank.mine")) + "</button>" +
+        "</div>" +
+        '<div class="row gap mt" style="justify-content:center">' +
           '<span class="tag">' + esc(t("kids.week")) + " " + esc(U.signed(S.weekEarned(c.id))) + "</span>" +
           (bd ? '<span class="tag brand">🎂 ' + esc(bd.days === 0 ? t("dash.birthdayToday") : t("dash.daysLeft", { n: U.iso(bd.days) })) + "</span>" : "") +
           (bd ? '<span class="tag">' + esc(t("kids.age", { n: U.iso(bd.age) })) + "</span>" : "") +
@@ -518,10 +523,17 @@
     html += '<div class="section-title">' + esc(t("kids.history")) + "</div>" +
       '<div class="card flush">' + (entries.length
         ? '<ul class="list">' + entries.slice(0, 40).map(function (l) {
-            return "<li><div class=\"grow\"><div class=\"title\">" + ledgerLabelHtml(l) + "</div>" +
-              '<div class="sub">' + esc(U.fmtDateTime(l.ts)) + (l.by && S.parent(l.by) ? " · " + esc(S.parent(l.by).name) : "") + "</div></div>" +
+            var undone = !!l.reversedBy;
+            return '<li' + (undone ? ' class="paused"' : "") + '><div class="grow">' +
+              '<div class="title"' + (undone ? ' style="text-decoration:line-through"' : "") + ">" +
+                ledgerLabelHtml(l) + "</div>" +
+              '<div class="sub">' + esc(U.fmtDateTime(l.ts)) + (l.by && S.parent(l.by) ? " · " + esc(S.parent(l.by).name) : "") +
+                (l.reverses ? " · " + esc(t("undo.entry")) : "") + "</div></div>" +
               '<div class="pts-cell">' + U.points(l.self) +
-              (l.group ? "<small>" + esc(t("tasks.groupPts")) + " " + U.points(l.group) + "</small>" : "") + "</div></li>";
+              (l.group ? "<small>" + esc(t("tasks.groupPts")) + " " + U.points(l.group) + "</small>" : "") + "</div>" +
+              (S.canReverse(l)
+                ? '<button class="icon-btn" data-act="p.undo" data-id="' + l.id + '" title="' + esc(t("undo.do")) + '">↩️</button>'
+                : "") + "</li>";
           }).join("") + "</ul>"
         : U.emptyState(t("kids.noHistory"), "📈", t("empty.history"))) + "</div>";
 
@@ -609,6 +621,208 @@
     return free ? free.id : global.AVATARS.tones[0].id;
   }
 
+
+  /* ================= the bank =================
+     A parent sees every child's account, because a parent is the one actually
+     holding the money. */
+
+  function bankTab() {
+    var s = S.get();
+    var html = '<div class="wrap"><h1>' + esc(t("bank.title")) + "</h1>";
+
+    if (!s.children.length) {
+      return html + U.emptyState(t("bank.noMoney"), "\u{1F3E6}", t("empty.kids")) + "</div>";
+    }
+
+    html += '<div class="card flush"><ul class="list">' + s.children.map(function (c) {
+      var cash = S.cashBalance(c.id), locked = S.lockedBalance(c.id);
+      return '<li class="kid-row" style="--kid:' + S.childColor(c) + '">' +
+        U.childAvatar(c, 40) +
+        '<div class="grow"><div class="title">' + U.name(c) + "</div>" +
+        '<div class="sub">' + esc(t("bank.cash")) + " " + U.cash(cash, { plain: true }) +
+          (locked ? " · " + esc(t("bank.locked")) + " " + U.cash(locked, { plain: true }) : "") + "</div></div>" +
+        '<div class="row tight nowrap">' +
+          '<button class="btn small good" data-act="p.bankIn" data-id="' + c.id + '">＋</button>' +
+          '<button class="btn small ghost" data-act="p.bankOut" data-id="' + c.id + '">－</button>' +
+          '<button class="btn small soft" data-act="p.bankChild" data-id="' + c.id + '">→</button>' +
+        "</div></li>";
+    }).join("") + "</ul></div>" +
+    '<p class="hint">' + esc(t("bank.childOnly")) + "</p>";
+
+    html += depositTypesCard();
+    html += bankSettingsCard();
+    return html + "</div>";
+  }
+
+  function depositTypesCard() {
+    var types = S.depositTypes();
+    return '<div class="section-title">' + esc(t("bank.depositTypes")) +
+      '<button class="btn small" data-act="p.typeNew">＋</button></div>' +
+      '<div class="card flush">' + (types.length
+        ? types.map(function (d) {
+            return '<div class="task-row' + (d.active === false ? " paused" : "") + '">' +
+              '<div class="grow"><div class="title">' + typeName(d) + "</div>" +
+              '<div class="sub">' + esc(termText(d.termDays)) + " · " +
+                esc(t("bank.ratePct", { n: U.iso(d.ratePct) })) + " · " +
+                esc(d.earlyExit ? t("bank.earlyExit") : t("bank.locked1")) + "</div></div>" +
+              '<button class="icon-btn" data-act="p.typeEdit" data-id="' + d.id + '">✏️</button>' +
+              '<button class="icon-btn" data-act="p.typeDelete" data-id="' + d.id + '">\u{1F5D1}️</button>' +
+            "</div>";
+          }).join("")
+        : U.emptyState(t("bank.noTypes"), "\u{1F4C8}", t("bank.noTypesHint"),
+            '<button class="btn small" data-act="p.typeNew">＋ ' + esc(t("bank.newType")) + "</button>")) +
+      "</div>" + '<p class="hint">' + esc(t("bank.depositTypesHint")) + "</p>";
+  }
+  /* "1 ימים" and "1 dagen" are wrong in both languages, so a single day gets
+     its own wording rather than a number slotted into a plural. */
+  function termText(days) {
+    return S.num(days) === 1 ? t("bank.termDay") : t("bank.termDays", { n: U.iso(days) });
+  }
+  function leftText(days) {
+    return days === 1 ? t("bank.maturesIn1") : t("bank.maturesIn", { n: U.iso(days) });
+  }
+
+  function typeName(d) { return d.nameKey && !d.name ? esc(t(d.nameKey)) : U.trHtml(d, "name"); }
+  function typeNamePlain(d) { return d.nameKey && !d.name ? t(d.nameKey) : U.trValue(d, "name"); }
+
+  function bankSettingsCard() {
+    var s = S.get();
+    return '<div class="section-title">' + esc(t("bank.settings")) + "</div>" +
+      '<div class="card"><form data-act="p.bankSettings">' +
+        '<div class="field"><span class="field-label">' + esc(t("bank.currency")) + "</span>" +
+          '<div class="chips">' + ["EUR", "ILS"].map(function (code) {
+            return '<button type="button" class="chip' + (S.currency() === code ? " on" : "") +
+              '" data-act="p.currency" data-code="' + code + '">' +
+              U.currencySymbol(code) + " " + code + "</button>";
+          }).join("") + "</div></div>" +
+        '<div class="field"><label for="bRate">' + esc(t("bank.rateTitle")) + "</label>" +
+          '<input id="bRate" type="number" min="0" step="1" value="' + S.conversionRate() + '">' +
+          '<div class="hint">' + esc(t("bank.rateHint", { c: U.currencySymbol() })) + "</div></div>" +
+        '<button class="btn block" type="submit">' + esc(t("common.save")) + "</button>" +
+      "</form></div>";
+  }
+
+  /* One child's account, in full. */
+  function bankChild(childId) {
+    var c = S.child(childId);
+    if (!c) return bankTab();
+    return '<div class="wrap">' +
+      '<button class="btn ghost small mb" data-act="p.bankBack">← ' + esc(t("common.back")) + "</button>" +
+      accountCard(c, false) +
+      depositsCard(c, false) +
+      moneyHistoryCard(c, true) +
+      "</div>";
+  }
+
+  /* Shared with the child's own screen: `asChild` decides whether the buttons
+     move money or only ask for it. */
+  function accountCard(c, asChild) {
+    var cash = S.cashBalance(c.id), locked = S.lockedBalance(c.id);
+    var saving = (c.savingsNote || "").trim();
+    return '<div class="card hero kid center" style="--kid:' + S.childColor(c) + '">' +
+      (asChild ? "" : U.childAvatar(c, 64) + "<h2 style=\"margin-top:8px\">" + U.name(c) + "</h2>") +
+      '<div class="eyebrow">' + esc(t("bank.cash")) + "</div>" +
+      U.scoreEl("cash:" + c.id, cash, { cls: "hero", money: true }) +
+      (locked
+        ? '<div class="row gap mt" style="justify-content:center">' +
+            '<span class="tag" style="background:rgba(255,255,255,.22);color:#fff">' +
+              esc(t("bank.locked")) + " " + U.cash(locked, { plain: true }) + "</span>" +
+            '<span class="tag" style="background:rgba(255,255,255,.22);color:#fff">' +
+              esc(t("bank.total")) + " " + U.cash(S.moneyTotal(c.id), { plain: true }) + "</span>" +
+          "</div>"
+        : "") +
+      (saving ? '<p style="margin-top:10px">\u{1F3AF} ' + U.trHtml(c, "savingsNote") + "</p>" : "") +
+      '<div class="row gap mt" style="justify-content:center">' +
+        (asChild
+          ? '<button class="btn good small" data-act="c.bankAsk" data-kind="deposit">' + esc(t("bank.requestDeposit")) + "</button>" +
+            '<button class="btn ghost small" data-act="c.bankAsk" data-kind="withdraw">' + esc(t("bank.requestWithdraw")) + "</button>"
+          : '<button class="btn good small" data-act="p.bankIn" data-id="' + c.id + '">＋ ' + esc(t("bank.deposit")) + "</button>" +
+            '<button class="btn ghost small" data-act="p.bankOut" data-id="' + c.id + '">－ ' + esc(t("bank.withdraw")) + "</button>") +
+      "</div>" +
+    "</div>";
+  }
+
+  function depositsCard(c, asChild) {
+    var all = S.deposits(c.id);
+    var open = all.filter(function (d) { return d.status === "open"; });
+    var done = all.filter(function (d) { return d.status !== "open"; });
+    var types = S.depositTypes().filter(function (d) { return d.active !== false; });
+
+    var html = '<div class="section-title">' + esc(t("bank.deposits")) +
+      (types.length && S.cashBalance(c.id) > 0
+        ? '<button class="btn small" data-act="' + (asChild ? "c" : "p") + '.depNew" data-id="' + c.id + '">＋ ' +
+          esc(t("bank.openDeposit")) + "</button>"
+        : "") + "</div>";
+
+    if (!all.length) {
+      return html + U.emptyState(t("bank.noDeposits"), "\u{1F3E6}", t("bank.noDepositsHint"));
+    }
+    html += '<div class="card flush">' + open.map(function (d) { return depositRow(d, asChild); }).join("");
+    if (done.length) {
+      html += '<div class="section-title" style="margin:10px 14px 4px">' + esc(t("bank.closedDeposits")) + "</div>" +
+        done.slice(0, 8).map(function (d) { return depositRow(d, asChild); }).join("");
+    }
+    return html + "</div>";
+  }
+
+  function depositRow(d, asChild) {
+    var type = S.depositType(d.typeId);
+    var isOpen = d.status === "open";
+    var ready = isOpen && S.matured(d);
+    var left = Math.max(0, Math.ceil(
+      (new Date(d.maturesTs).getTime() - Date.now()) / 86400000));
+    var earns = isOpen ? S.interestOn(d, d.maturesTs) : S.money(d.interestPaid);
+
+    return '<div class="task-row' + (isOpen ? "" : " paused") + '">' +
+      '<span class="rank-badge">' + (ready ? "✅" : isOpen ? "⏳" : d.status === "broken" ? "✂️" : "\u{1F4B0}") + "</span>" +
+      '<div class="grow"><div class="title">' + (type ? typeName(type) : esc(t("bank.deposits"))) + " · " +
+        U.cash(d.amount, { plain: true }) + "</div>" +
+        '<div class="sub">' + esc(t("bank.ratePct", { n: U.iso(d.ratePct) })) + " · " +
+          esc(isOpen
+            ? (ready ? t("bank.maturedNow") : leftText(left)) + " · " +
+              t("bank.willEarn", { v: U.cash(earns, { plain: true }) })
+            : t("bank.status." + d.status) + (earns ? " · " + t("bank.earned", { v: U.cash(earns, { plain: true }) }) : "")) +
+        "</div></div>" +
+      (isOpen
+        ? (ready
+            ? '<button class="btn small good" data-act="' + (asChild ? "c" : "p") + '.depClose" data-id="' + d.id + '">' +
+              esc(t("bank.close")) + "</button>"
+            : d.earlyExit
+              ? '<button class="btn small ghost" data-act="' + (asChild ? "c" : "p") + '.depBreak" data-id="' + d.id + '">' +
+                esc(t("bank.breakEarly")) + "</button>"
+              : '<span class="tag" title="' + esc(t("bank.cannotBreak")) + '">\u{1F512}</span>')
+        : "") +
+      "</div>";
+  }
+
+  function moneyHistoryCard(c, canUndo) {
+    var rows = S.moneyFor(c.id);
+    return '<div class="section-title">' + esc(t("bank.history")) + "</div>" +
+      '<div class="card flush">' + (rows.length
+        ? '<ul class="list">' + rows.slice(0, 40).map(function (m) {
+            return moneyRow(m, canUndo);
+          }).join("") + "</ul>"
+        : U.emptyState(t("bank.noHistory"), "\u{1F4B6}", t("empty.history"))) + "</div>";
+  }
+
+  function moneyRow(m, canUndo) {
+    var undone = !!m.reversedBy;
+    var kind = esc(t("kind." + m.kind));
+    /* The reason a parent typed is the headline where there is one; where there
+       is not, the kind of movement stands in for it — and is then not repeated
+       underneath. */
+    return '<li' + (undone ? ' class="paused"' : "") + '>' +
+      '<div class="grow"><div class="title"' + (undone ? ' style="text-decoration:line-through"' : "") + ">" +
+        (m.note ? U.trHtml(m, "note") : kind) + "</div>" +
+      '<div class="sub">' + (m.note ? kind + " · " : "") + esc(U.fmtDateTime(m.ts)) +
+        (m.reverses ? " · " + esc(t("undo.entry")) : "") + "</div></div>" +
+      U.cash(m.amount, { sign: true }) +
+      (canUndo && S.canReverse(m)
+        ? '<button class="icon-btn" data-act="p.undo" data-id="' + m.id + '" title="' + esc(t("undo.do")) + '">↩️</button>'
+        : "") +
+      "</li>";
+  }
+
   /* ================= approvals ================= */
 
   function approvalsTab() {
@@ -619,6 +833,10 @@
     html += '<div class="card flush"><ul class="list">' + pending.map(function (cl) {
       var c = S.child(cl.childId);
       if (!c) return "";
+      /* A money request has no task or reward behind it — the amount and the
+         reason a child typed are the whole thing. */
+      if (cl.kind === "deposit" || cl.kind === "withdraw") return moneyClaimRow(cl, c);
+
       var isReward = cl.kind === "reward";
       var item = isReward ? S.reward(cl.rewardId) : S.task(cl.taskId);
       if (!item) return "";
@@ -646,6 +864,26 @@
     }).join("") + "</ul></div>";
 
     return html + "</div>";
+  }
+
+  function moneyClaimRow(cl, c) {
+    var out = cl.kind === "withdraw";
+    /* A child can ask for more than is there — points may have moved since. The
+       button is refused rather than hidden, so a parent can see what was asked. */
+    var covered = !out || S.cashBalance(c.id) >= S.num(cl.amount);
+    return "<li>" + U.childAvatar(c, 40) +
+      '<div class="grow"><div class="title">' +
+        esc(t(out ? "bank.pendingWithdraw" : "bank.pendingDeposit")) +
+        (cl.note ? " · " + U.trHtml(cl, "note") : "") + "</div>" +
+      '<div class="sub" title="' + esc(t("child.requestedAt", { when: U.fmtDateTime(cl.ts) })) + '">' +
+        U.name(c) + " · " + esc(U.relTime(cl.ts)) + "</div>" +
+      '<div class="sub">' + U.cash(out ? -cl.amount : cl.amount, { sign: true }) +
+        (covered ? "" : ' <span class="tag bad">' + esc(t("bank.tooMuch")) + "</span>") + "</div></div>" +
+      '<div class="row tight nowrap">' +
+        '<button class="btn small good" data-act="p.claim" data-id="' + cl.id + '" data-ok="1"' +
+          (covered ? "" : " disabled") + ">✓</button>" +
+        '<button class="btn small ghost" data-act="p.claim" data-id="' + cl.id + '" data-ok="0">✗</button>' +
+      "</div></li>";
   }
 
   /* ================= family settings ================= */
@@ -1466,5 +1704,204 @@
     });
   }
 
-  global.ParentView = { render: render };
+
+  /* ---- bank actions ---- */
+
+  U.on("p.bankChild", function (d) { global.App.go({ tab: "bank", params: { childId: d.id } }); });
+  U.on("p.bankBack", function () { global.App.go({ tab: "bank", params: {} }); });
+
+  function moveDialog(childId, kind) {
+    var c = S.child(childId);
+    var out = kind === "withdraw";
+    U.modal(t(out ? "bank.withdraw" : "bank.deposit") + " · " + S.nameOf(c),
+      '<form data-act="p.bankMove" data-id="' + c.id + '" data-kind="' + kind + '">' +
+        (out ? '<p class="lead">' + esc(t("bank.cash")) + " " + U.cash(S.cashBalance(c.id), { plain: true }) + "</p>" : "") +
+        '<div class="field"><label for="mAmount">' + esc(t("bank.amount")) + " (" + U.currencySymbol() + ")</label>" +
+          '<input id="mAmount" type="number" min="0.01" step="0.01" inputmode="decimal"></div>' +
+        '<div class="field"><label for="mNote">' + esc(t("bank.reason")) + "</label>" +
+          '<input id="mNote" type="text">' +
+          '<div class="hint">' + esc(t("bank.reasonHint")) + "</div></div>" +
+        '<button class="btn block' + (out ? " ghost" : " good") + '" type="submit">' +
+          esc(t(out ? "bank.withdraw" : "bank.deposit")) + "</button>" +
+      "</form>",
+      function (body) { var box = U.el("#mAmount", body); if (box) box.focus(); });
+  }
+  U.on("p.bankIn", function (d) { moveDialog(d.id, "deposit"); });
+  U.on("p.bankOut", function (d) { moveDialog(d.id, "withdraw"); });
+  U.on("p.bankMove", function (d, form) {
+    var amount = S.money(U.el("#mAmount", form).value);
+    var note = U.el("#mNote", form).value.trim();
+    if (!amount || amount <= 0) return U.toast(t("bank.amount"), "bad");
+    var done = d.kind === "withdraw"
+      ? S.withdraw(d.id, amount, note, me().id)
+      : S.deposit(d.id, amount, note, me().id);
+    if (!done) return U.toast(t("bank.tooMuch"), "bad");
+    U.closeModal();
+    U.toast(t("common.saved"), "good");
+    global.App.refresh();
+    if (d.kind === "deposit") U.celebrate({ color: S.childColor(S.child(d.id)) });
+  });
+
+  /* ---- deposit products ---- */
+
+  var typeDraft = null;
+  function typeDialog(existing) {
+    typeDraft = existing ? S.clone(existing) : { id: "", name: "", termDays: 30, ratePct: 2, earlyExit: true, active: true };
+    var d = typeDraft;
+    U.modal(existing ? t("common.edit") : t("bank.newType"),
+      '<form data-act="p.typeSave" data-id="' + (d.id || "") + '">' +
+        '<div class="field"><label for="tyName">' + esc(t("bank.typeName")) + "</label>" +
+          '<input id="tyName" type="text" value="' + esc(d.nameKey && !d.name ? t(d.nameKey) : (d.name || "")) + '"></div>' +
+        '<div class="grid-2 keep">' +
+          '<div class="field"><label for="tyDays">' + esc(t("bank.termLabel")) + "</label>" +
+            '<input id="tyDays" type="number" min="1" step="1" value="' + S.num(d.termDays) + '"></div>' +
+          '<div class="field"><label for="tyRate">' + esc(t("bank.rate")) + " %</label>" +
+            '<input id="tyRate" type="number" min="0" step="0.1" value="' + S.num(d.ratePct) + '"></div>' +
+        "</div>" +
+        '<label class="row tight"><input type="checkbox" id="tyExit" style="width:auto"' +
+          (d.earlyExit ? " checked" : "") + "> " + esc(t("bank.earlyExit")) + "</label>" +
+        '<div class="hint">' + esc(t("bank.breakWarn")) + "</div>" +
+        '<button class="btn block mt" type="submit">' + esc(t("common.save")) + "</button>" +
+      "</form>");
+  }
+  U.on("p.typeNew", function () { typeDialog(null); });
+  U.on("p.typeEdit", function (d) { typeDialog(S.depositType(d.id)); });
+  U.on("p.typeSave", function (d, form) {
+    var typed = U.el("#tyName", form).value.trim();
+    var existing = d.id ? S.depositType(d.id) : null;
+    var patch = {
+      id: d.id || "",
+      termDays: U.el("#tyDays", form).value,
+      ratePct: U.el("#tyRate", form).value,
+      earlyExit: U.el("#tyExit", form).checked,
+      active: true
+    };
+    /* A name typed over the one that came with the app makes it the family's
+       own, exactly as renaming a task does. */
+    if (existing && existing.nameKey && typed && typed !== t(existing.nameKey)) existing.nameKey = "";
+    patch.name = typed;
+    if (existing && existing.nameKey && typed === t(existing.nameKey)) patch.name = "";
+    S.saveDepositType(patch);
+    U.closeModal();
+    U.toast(t("common.saved"), "good");
+    global.App.refresh();
+  });
+  U.on("p.typeDelete", function (d) {
+    var type = S.depositType(d.id);
+    U.confirmDialog(t("common.remove") + " · " + typeNamePlain(type), function () {
+      S.deleteDepositType(d.id);
+      U.toast(t("common.saved"), "good");
+      global.App.refresh();
+    });
+  });
+
+  /* ---- bank settings ---- */
+
+  var currencyDraft = null;
+  U.on("p.currency", function (d) {
+    currencyDraft = d.code;
+    U.els('[data-act="p.currency"]').forEach(function (b) {
+      b.classList.toggle("on", b.dataset.code === d.code);
+    });
+  });
+  U.on("p.bankSettings", function (d, form) {
+    var s = S.get();
+    if (currencyDraft) s.settings.currency = currencyDraft;
+    s.settings.pointsPerUnit = Math.max(0, Math.round(S.num(U.el("#bRate", form).value)));
+    S.save();
+    currencyDraft = null;
+    U.toast(t("common.saved"), "good");
+    global.App.refresh();
+  });
+
+  /* ---- opening and closing deposits on a child's behalf ---- */
+
+  function openDepositDialog(childId, asChild) {
+    var c = S.child(childId);
+    var types = S.depositTypes().filter(function (x) { return x.active !== false; });
+    if (!types.length) return U.toast(t("bank.noTypes"), "bad");
+    U.modal(t("bank.openDeposit"),
+      '<form data-act="' + (asChild ? "c" : "p") + '.depSave" data-id="' + c.id + '">' +
+        '<p class="lead">' + esc(t("bank.cash")) + " " + U.cash(S.cashBalance(c.id), { plain: true }) + "</p>" +
+        '<div class="field"><span class="field-label">' + esc(t("bank.chooseType")) + "</span>" +
+          '<div class="stack">' + types.map(function (x, i) {
+            return '<label class="row tight" style="align-items:flex-start">' +
+              '<input type="radio" name="dtype" value="' + x.id + '"' + (i === 0 ? " checked" : "") +
+                ' style="width:auto;margin-top:4px">' +
+              '<span class="grow"><strong>' + typeName(x) + "</strong><br>" +
+                '<small>' + esc(termText(x.termDays)) + " · " +
+                  esc(t("bank.ratePct", { n: U.iso(x.ratePct) })) + " · " +
+                  esc(x.earlyExit ? t("bank.earlyExit") : t("bank.locked1")) + "</small></span></label>";
+          }).join("") + "</div></div>" +
+        '<div class="field"><label for="dAmount">' + esc(t("bank.amount")) + " (" + U.currencySymbol() + ")</label>" +
+          '<input id="dAmount" type="number" min="0.01" step="0.01" inputmode="decimal"></div>' +
+        '<button class="btn block" type="submit">' + esc(t("bank.openDeposit")) + "</button>" +
+      "</form>");
+  }
+  U.on("p.depNew", function (d) { openDepositDialog(d.id, false); });
+  U.on("p.depSave", function (d, form) {
+    var typeId = (form.querySelector('input[name="dtype"]:checked') || {}).value;
+    var amount = S.money(U.el("#dAmount", form).value);
+    if (!S.openDeposit(d.id, typeId, amount, me().id)) return U.toast(t("bank.tooMuch"), "bad");
+    U.closeModal();
+    U.toast(t("common.saved"), "good");
+    global.App.refresh();
+  });
+  U.on("p.depClose", function (d) { closeDepositNow(d.id, false); });
+  U.on("p.depBreak", function (d) {
+    U.confirmDialog(t("bank.breakWarn"), function () { closeDepositNow(d.id, false); });
+  });
+  function closeDepositNow(id, asChild) {
+    var dep = S.depositById(id);
+    var done = S.closeDeposit(id, asChild ? null : me().id);
+    if (!done) return U.toast(t("bank.cannotBreak"), "bad");
+    U.toast(done.interestPaid
+      ? t("bank.earned", { v: U.cash(done.interestPaid, { plain: true }) })
+      : t("common.saved"), "good");
+    global.App.refresh();
+    if (done.interestPaid) U.celebrate({ color: S.childColor(S.child(dep.childId)) });
+  }
+
+  /* ---- undo ---- */
+
+  U.on("p.undo", function (d) {
+    U.confirmDialog(t("undo.confirm"), function () {
+      if (!S.reverseEntry(d.id, me().id)) return U.toast(t("undo.cannot"), "bad");
+      U.toast(t("undo.done"), "good");
+      global.App.refresh();
+    });
+  });
+
+  /* ---- what one child is saving for ---- */
+
+  U.on("p.goalSet", function (d) {
+    var c = S.child(d.id);
+    var prizes = S.rewardsFor(c.id).sort(function (a, b) { return S.num(a.cost) - S.num(b.cost); });
+    U.modal(t("goal.set") + " · " + S.nameOf(c),
+      '<p class="hint">' + esc(t("goal.hint")) + "</p>" +
+      '<div class="stack">' +
+        '<button class="btn ghost block" data-act="p.goalPick" data-id="' + c.id + '" data-reward="">' +
+          esc(t("goal.clear")) + "</button>" +
+        prizes.map(function (r) {
+          return '<button class="btn ' + (c.goalRewardId === r.id ? "" : "ghost") + ' block" data-act="p.goalPick" data-id="' +
+            c.id + '" data-reward="' + r.id + '">' + (r.icon || "🎁") + " " + esc(U.keyedTitle(r)) +
+            " · " + S.num(r.cost) + "</button>";
+        }).join("") +
+      "</div>");
+  });
+  U.on("p.goalPick", function (d) {
+    S.setGoal(d.id, d.reward);
+    U.closeModal();
+    U.toast(t("common.saved"), "good");
+    global.App.refresh();
+  });
+
+  /* The child's bank screen renders the same account card, deposit list and
+     history, in read-only or ask-a-parent mode. Sharing them keeps one set of
+     rules for what a deposit looks like rather than two that drift. */
+  global.ParentView = {
+    render: render,
+    accountCard: accountCard, depositsCard: depositsCard, moneyHistoryCard: moneyHistoryCard,
+    openDepositDialog: openDepositDialog, closeDepositNow: closeDepositNow
+  };
 })(window);

@@ -153,6 +153,12 @@
     out.claims = mergeClaims(local.claims, remote.claims, gone);
     out.movieNights = unionById(base.movieNights, other.movieNights, gone);
     out.redemptions = unionById(base.redemptions, other.redemptions, gone);
+    /* The money ledger merges exactly like the points one: append-only, keyed
+       by id, so two phones banking at once end up with both rows and neither
+       overwrites the other. Deposits carry mutable status, so the later write
+       wins there, as it does for children. */
+    out.money = unionById(local.money, remote.money, gone);
+    out.deposits = unionById(base.deposits, other.deposits, gone);
 
     out.ledger = unionById(local.ledger, remote.ledger, gone).filter(function (l) {
       return !l.childId || !gone[l.childId];

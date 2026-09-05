@@ -235,6 +235,52 @@ was picked and the history keeps every one.
 Ties are broken by total balance and then by name, so the winner is always
 stable rather than random.
 
+## The Bank of Mum and Dad
+
+Beside the points there is a second, separate thing: real money a child has
+handed a parent to look after. The two never mix. Points are earned and spent
+inside the app; the bank is a record of what a parent is actually holding, so
+neither the child nor the parent has to remember.
+
+**Paying in and taking out.** A parent moves money directly. A child can only
+ask — a request with an amount and a reason, which lands in Approvals beside
+chores and rewards, and moves nothing until a parent agrees. A withdrawal is
+refused if the account cannot cover it, whoever asks.
+
+**Deposits.** A family writes its own kinds: a term in days, a yearly rate, and
+whether the money may come out early. A new family starts with four — a day at
+0.5%, a month at 2%, three months at 4% locked, and a year at 8% locked — so
+the lesson is visible before anything is configured. Money inside a deposit
+leaves the spendable balance and is reported separately.
+
+Interest is simple, not compound: the yearly rate for the days the money
+actually sat there, which a child can check with a calculator. Breaking a
+deposit early — where the kind allows it at all — returns the money and none of
+the interest.
+
+A deposit that comes to term pays itself out the next time anybody opens the
+app; there is no server to do it. The interest row carries an id derived from
+the deposit, so two phones settling the same deposit write the same row and the
+merge keeps one.
+
+**Privacy.** A child sees their own money and no one else's — not a sibling's
+balance, not their name. Parents see everything, because parents are holding it.
+
+**Points into money.** Off by default. A parent sets how many points buy one
+euro or shekel, and only then is the option offered. Converting writes two
+linked entries, one in each ledger, and undoing either undoes both.
+
+**Undo.** Nothing is ever deleted. Undoing writes a reversal entry pointing back
+at the one it cancels, and the original stays in the history with a line through
+it. On real money that is the point: a child must be able to see that a deposit
+was taken back, when, and by whom. A deposit's lock and unlock rows cannot be
+undone directly — a deposit is unwound by breaking it.
+
+**Whole numbers and cents.** Points are integers everywhere; half a point would
+mean nothing. Money and interest rates are not, and the store keeps the two
+readers apart (`num` and `dec`) precisely because mixing them silently drops the
+cents.
+
 ## Data, privacy and backups
 
 Everything is stored in `localStorage` under `familyPoints.v1` on that one

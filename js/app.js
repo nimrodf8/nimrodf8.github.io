@@ -13,6 +13,7 @@
     { id: "tasks", icon: "📋", key: "nav.tasks" },
     { id: "rewards", icon: "🎁", key: "nav.rewards" },
     { id: "kids", icon: "🧒", key: "nav.kids" },
+    { id: "bank", icon: "\u{1F3E6}", key: "nav.bank" },
     { id: "approvals", icon: "✅", key: "nav.approvals" },
     { id: "family", icon: "⚙️", key: "nav.family" }
   ];
@@ -20,6 +21,7 @@
     { id: "me", icon: "⭐", key: "nav.me" },
     { id: "tasks", icon: "📋", key: "nav.tasks" },
     { id: "rewards", icon: "🎁", key: "nav.rewards" },
+    { id: "bank", icon: "\u{1F3E6}", key: "nav.bank" },
     { id: "group", icon: "👨‍👩‍👧", key: "nav.group" },
     { id: "notes", icon: "📝", key: "nav.notes" }
   ];
@@ -192,6 +194,7 @@
 
   function boot() {
     S.load();
+    if (S.exists()) S.settleMatured();
     var s = S.get();
     global.I18N.setLang(s && s.settings.lang ? s.settings.lang : guessLang());
     applyUserLang();
@@ -203,6 +206,10 @@
     global.Sync.onChange(function () {
       var badge = U.el("#syncDot");
       if (badge) badge.textContent = syncDot();
+      /* A deposit opened on another phone can come to term while this one is
+         open; the ids are derived from the deposit, so whoever settles it
+         first wins and the other simply merges the same row. */
+      if (S.exists() && S.settleMatured()) refresh();
     });
 
     var invitation = invitationInUrl();
