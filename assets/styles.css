@@ -540,3 +540,14 @@ nav.tabs .badge {
 }
 
 .brand-mark.center-mark { margin: 0 auto 10px; }
+
+/* A button that does one thing on a tap and another when held. The callout and
+   selection have to go, or a long press raises the browser's own menu over it. */
+[data-long] {
+  -webkit-touch-callout: none;
+  user-select: none; -webkit-user-select: none;
+  touch-action: manipulation;
+  transition: transform .12s ease, filter .12s ease;
+}
+[data-long].held { transform: scale(.94); filter: brightness(1.15); }
+@media (prefers-reduced-motion: reduce) { [data-long].held { transform: none; } }

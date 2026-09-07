@@ -615,6 +615,51 @@
     });
   }
 
+  /* A tap on + or - moves one point. Tapping five times should read as one
+     "+5" in a child's history, not five lines, so consecutive taps by the same
+     parent on the same child fold into the entry already there while it is
+     still fresh. Anything with a reason typed on it, or already undone, is left
+     alone — this only ever extends its own kind of entry. */
+  var BUMP_WINDOW = 60 * 1000;
+
+  function bump(childId, delta, byParentId) {
+    delta = num(delta);
+    if (!delta) return null;
+    var by = byParentId || null;
+    var last = null;
+    for (var i = state.ledger.length - 1; i >= 0; i--) {
+      if (state.ledger[i].childId === childId) { last = state.ledger[i]; break; }
+    }
+    var extend = last && last.bump && last.kind === "manual" && last.by === by &&
+      !last.note && !last.reversedBy &&
+      (Date.now() - new Date(last.ts).getTime()) < BUMP_WINDOW;
+
+    if (!extend) {
+      var made = adjust(childId, delta, 0, "", by);
+      made.bump = true;
+      save();
+      return made;
+    }
+
+    /* record() already mirrored this entry when it was created, so extending it
+       has to move the group figure by hand rather than through the mirror. */
+    var mirrored = num(last.mirrored);
+    last.self = num(last.self) + delta;
+    if (mirrored) { last.group = num(last.group) + delta; last.mirrored = num(last.self); }
+    last.ts = now();
+
+    /* Tapped back to where it started: leaving a "+0" in the history reads as a
+       bug rather than as nothing having happened. */
+    if (!num(last.self) && !num(last.group)) {
+      forget(last.id);
+      state.ledger = state.ledger.filter(function (l) { return l.id !== last.id; });
+      save();
+      return null;
+    }
+    save();
+    return last;
+  }
+
   function adjust(childId, self, group, note, byParentId) {
     var entry = {
       childId: childId, taskId: null, kind: "manual",
@@ -638,6 +683,51 @@
   /* A reversal is a row of its own carrying the opposite amounts, so every
      total that simply adds the ledger up already accounts for it. Nothing else
      has to know. */
+  /* ---- counting what was earned before the mirror was switched on ----
+     Turning the setting on only affects what happens next, which leaves the pot
+     looking empty next to months of history. This works out what those months
+     would have added, so a parent can put it in once. */
+  function pendingMirror() {
+    var byChild = {};
+    state.ledger.forEach(function (l) {
+      if (!MIRRORED_KINDS[l.kind] || l.reversedBy || l.mirrored) return;
+      var v = num(l.self);
+      if (!v) return;
+      byChild[l.childId] = (byChild[l.childId] || 0) + v;
+    });
+    return byChild;
+  }
+  function pendingMirrorTotal() {
+    var byChild = pendingMirror(), sum = 0;
+    Object.keys(byChild).forEach(function (k) { sum += byChild[k]; });
+    return sum;
+  }
+
+  /* Each entry it counts is marked with the same field a live mirror uses, so
+     the history shows which rows went to the pot and a second run finds nothing
+     left to do — the button cannot double-count however often it is pressed.
+     One summary entry per child rather than one per row, so a year of history
+     does not bury the child's own page. */
+  function catchUpMirror(byParentId) {
+    var byChild = pendingMirror();
+    var ids = Object.keys(byChild);
+    if (!ids.length) return null;
+    state.ledger.forEach(function (l) {
+      if (!MIRRORED_KINDS[l.kind] || l.reversedBy || l.mirrored) return;
+      if (num(l.self)) l.mirrored = num(l.self);
+    });
+    var total = 0;
+    var entries = ids.map(function (childId) {
+      total += byChild[childId];
+      return record({
+        childId: childId, taskId: null, kind: "catchup",
+        self: 0, group: byChild[childId], note: "", by: byParentId || null
+      });
+    });
+    save();
+    return { entries: entries, total: total, children: ids.length };
+  }
+
   function groupTotal() {
     return state.ledger.reduce(function (sum, l) { return sum + num(l.group); }, 0);
   }
@@ -1398,8 +1488,10 @@
     saveReward: saveReward, deleteReward: deleteReward, reward: reward,
     rewardsFor: rewardsFor, familyRewards: familyRewards, defaultRewards: defaultRewards,
     category: category, saveCategory: saveCategory,
-    awardTask: awardTask, adjust: adjust, record: record,
-    balance: balance, groupTotal: groupTotal, weekEarned: weekEarned, weekRange: weekRange,
+    awardTask: awardTask, adjust: adjust, bump: bump, record: record,
+    balance: balance, groupTotal: groupTotal,
+    pendingMirror: pendingMirror, pendingMirrorTotal: pendingMirrorTotal,
+    catchUpMirror: catchUpMirror, weekEarned: weekEarned, weekRange: weekRange,
     weekWinner: weekWinner, standings: standings, topScorer: topScorer,
     birthdayInfo: birthdayInfo,
     claimTask: claimTask, pendingClaims: pendingClaims, decideClaim: decideClaim, claimFor: claimFor,

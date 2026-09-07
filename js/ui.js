@@ -20,11 +20,76 @@
   function dispatch(ev) {
     var node = ev.target.closest("[data-act]");
     if (!node || node.tagName === "FORM") return;
+    /* The hold already ran; the click that follows it is not a second command. */
+    if (held) { held = false; ev.preventDefault(); return; }
     var fn = handlers[node.getAttribute("data-act")];
     if (!fn) return;
     ev.preventDefault();
     fn(node.dataset, node, ev);
   }
+  /* ---- press and hold ----
+     A button carrying data-long runs its own action on a tap and that other one
+     when it is held. Delegated like every other handler, because the screen is
+     re-rendered wholesale and a listener bound to a node would not survive it.
+
+     Held with a finger, held with a mouse, held on the keyboard, or right-
+     clicked: all four reach the same place, so the second action is not lost to
+     anyone who cannot press and hold. */
+  var HOLD_MS = 450;
+  var holdTimer = null, holdNode = null, held = false;
+
+  function startHold(node) {
+    cancelHold();
+    holdNode = node;
+    holdTimer = setTimeout(function () {
+      holdTimer = null;
+      held = true;
+      if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
+      node.classList.add("held");
+      setTimeout(function () { node.classList.remove("held"); }, 220);
+      runAction(node.getAttribute("data-long"), node);
+    }, HOLD_MS);
+  }
+  function cancelHold() {
+    if (holdTimer) clearTimeout(holdTimer);
+    holdTimer = null;
+    if (holdNode) holdNode.classList.remove("held");
+    holdNode = null;
+  }
+  function runAction(action, node) {
+    var fn = handlers[action];
+    if (fn) fn(node.dataset, node, null);
+  }
+
+  document.addEventListener("pointerdown", function (ev) {
+    var node = ev.target.closest("[data-long]");
+    held = false;
+    if (node) startHold(node);
+  });
+  ["pointerup", "pointercancel", "pointerleave", "scroll"].forEach(function (name) {
+    document.addEventListener(name, cancelHold, true);
+  });
+  /* Holding Enter or Space on a focused button counts as holding it. */
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    var node = ev.target.closest && ev.target.closest("[data-long]");
+    if (!node || ev.repeat === false && holdTimer) return;
+    if (!holdTimer) { held = false; startHold(node); }
+  });
+  document.addEventListener("keyup", function (ev) {
+    if (ev.key === "Enter" || ev.key === " ") cancelHold();
+  });
+  /* A right-click, or the menu a long press raises on some phones, opens the
+     same thing rather than the browser's own menu. */
+  document.addEventListener("contextmenu", function (ev) {
+    var node = ev.target.closest("[data-long]");
+    if (!node) return;
+    ev.preventDefault();
+    cancelHold();
+    held = true;
+    runAction(node.getAttribute("data-long"), node);
+  });
+
   document.addEventListener("click", dispatch);
   document.addEventListener("submit", function (ev) {
     var form = ev.target.closest("form[data-act]");

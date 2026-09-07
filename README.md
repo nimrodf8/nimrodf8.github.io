@@ -104,6 +104,15 @@ money already comes out of the child's own balance; charging the family a second
 time for the same act would be double counting. An opening balance is not
 mirrored either — nobody earned it.
 
+Turning it on only affects what happens next, which leaves the pot looking empty
+beside months of history. A one-off button beside the setting works out what
+that history would have added and puts it in — showing the figure before it is
+pressed, and asking. Each entry it counts is marked with the same field a live
+mirror uses, so the history shows which rows went to the pot and a second press
+finds nothing left to do. It writes one summary entry per child rather than one
+per row, so a year of history does not bury a child's own page, and that entry
+can be undone like anything else.
+
 It happens in `record`, the single point where anything reaches the ledger, so
 every total that sums the group column picks it up without knowing the setting
 exists, and undoing an entry unwinds the mirror with it. Entries that were
@@ -447,6 +456,21 @@ This was learned the hard way: standalone was turned on, a family member removed
 and re-added the icon to pick up the new artwork, and came back to an empty app.
 The full-screen look is not worth that. If it is ever wanted again, ship it
 together with a way to get back in that does not depend on browser storage.
+
+### Tap for one, hold for any
+
+The plus and minus on a child's page move one point per tap. Held for about half
+a second they open the dialog instead, where an amount and a reason can be
+typed. The same second action is reachable four ways — a finger held down, a
+mouse held down, Enter or Space held on a focused button, and a right-click — so
+nobody who cannot press and hold loses the dialog.
+
+A run of taps folds into the entry already there rather than writing one line
+per tap: five taps read as a single "+5" in a child's history, and tapping back
+down to where it started removes the row instead of leaving a "+0". Folding only
+ever extends an entry of its own kind — one with a reason typed on it, one made
+by another parent, or one more than a minute old is left alone and a new entry
+begins.
 
 ### Asking before signing out
 
