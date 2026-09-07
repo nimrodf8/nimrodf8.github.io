@@ -104,15 +104,6 @@ money already comes out of the child's own balance; charging the family a second
 time for the same act would be double counting. An opening balance is not
 mirrored either — nobody earned it.
 
-Turning it on only affects what happens next, which leaves the pot looking empty
-beside months of history. A one-off button beside the setting works out what
-that history would have added and puts it in — showing the figure before it is
-pressed, and asking. Each entry it counts is marked with the same field a live
-mirror uses, so the history shows which rows went to the pot and a second press
-finds nothing left to do. It writes one summary entry per child rather than one
-per row, so a year of history does not bury a child's own page, and that entry
-can be undone like anything else.
-
 It happens in `record`, the single point where anything reaches the ledger, so
 every total that sums the group column picks it up without knowing the setting
 exists, and undoing an entry unwinds the mirror with it. Entries that were

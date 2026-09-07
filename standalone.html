@@ -811,12 +811,6 @@ nav.tabs .badge {
     "setup.reviewIntro": "Everything is ready. Each child starts with {n} points, and we will add a starter set of tasks you can change at any time.",
     "setup.createFamily": "Create the family",
     "setup.startingPoints": "Starting points",
-    "ledger.catchup": "Counted into the family pot",
-    "family.catchUp": "Count what has already been earned",
-    "family.catchUpHint": "Everything the children earned before this setting was on is not in the pot. This puts it in, once. Each entry it counts is marked, so pressing it again does nothing.",
-    "family.catchUpConfirm": "Add {n} to the family pot, from everything earned so far?",
-    "family.catchUpNone": "Nothing left to count \u2014 everything earned is already in the pot.",
-    "family.catchUpDone": "{n} added to the family pot.",
     "family.mirror": "Personal points also fill the family pot",
     "family.mirrorHint": "Every point a child earns or loses on their own is counted into the shared pot as well \u2014 the child keeps theirs, and the family gets the same amount on top. Spending is not counted twice: buying a reward or cashing points in for money takes nothing out of the pot.",
     "family.mirrorOn": "Also to the family pot",
@@ -1357,12 +1351,6 @@ nav.tabs .badge {
     "setup.reviewIntro": "Alles staat klaar. Elk kind begint met {n} punten en we voegen een startset taken toe die je altijd kunt aanpassen.",
     "setup.createFamily": "Gezin aanmaken",
     "setup.startingPoints": "Startpunten",
-    "ledger.catchup": "Meegeteld in de gezinspot",
-    "family.catchUp": "Tel mee wat al verdiend is",
-    "family.catchUpHint": "Alles wat de kinderen verdienden voordat deze instelling aanstond, zit niet in de pot. Dit zet het er \u00e9\u00e9n keer in. Elke regel die wordt meegeteld krijgt een merkteken, dus nog een keer drukken doet niets.",
-    "family.catchUpConfirm": "{n} aan de gezinspot toevoegen, uit alles wat tot nu toe is verdiend?",
-    "family.catchUpNone": "Er is niets meer mee te tellen \u2014 alles wat verdiend is zit al in de pot.",
-    "family.catchUpDone": "{n} aan de gezinspot toegevoegd.",
     "family.mirror": "Persoonlijke punten vullen ook de gezinspot",
     "family.mirrorHint": "Elk punt dat een kind zelf verdient of verliest telt ook mee voor de gezamenlijke pot \u2014 het kind houdt het zijne en het gezin krijgt hetzelfde bedrag erbij. Uitgeven telt niet dubbel: een beloning kopen of punten inwisselen voor geld haalt niets uit de pot.",
     "family.mirrorOn": "Ook naar de gezinspot",
@@ -1903,12 +1891,6 @@ nav.tabs .badge {
     "setup.reviewIntro": "הכול מוכן. כל ילד מתחיל עם {n} נקודות, ונוסיף סט משימות פתיחה שאפשר לשנות בכל רגע.",
     "setup.createFamily": "יצירת המשפחה",
     "setup.startingPoints": "נקודות פתיחה",
-    "ledger.catchup": "נספר לקופה המשפחתית",
-    "family.catchUp": "ספירת מה שכבר נצבר",
-    "family.catchUpHint": "כל מה שהילדים צברו לפני שההגדרה הופעלה לא נמצא בקופה. זה מכניס אותו, פעם אחת. כל רשומה שנספרת מסומנת, ולכן לחיצה נוספת לא תעשה כלום.",
-    "family.catchUpConfirm": "להוסיף {n} לקופה המשפחתית, מכל מה שנצבר עד היום?",
-    "family.catchUpNone": "אין מה לספור — כל מה שנצבר כבר נמצא בקופה.",
-    "family.catchUpDone": "{n} נוספו לקופה המשפחתית.",
     "family.mirror": "נקודות אישיות נכנסות גם לקופה המשפחתית",
     "family.mirrorHint": "כל נקודה שילד מרוויח או מפסיד לעצמו נספרת גם בקופה המשותפת — הילד שומר על שלו, והמשפחה מקבלת את אותו סכום בנוסף. הוצאה לא נספרת פעמיים: קניית פרס או המרת נקודות לכסף לא מורידה כלום מהקופה.",
     "family.mirrorOn": "גם לקופה המשפחתית",
@@ -3109,51 +3091,6 @@ nav.tabs .badge {
   /* A reversal is a row of its own carrying the opposite amounts, so every
      total that simply adds the ledger up already accounts for it. Nothing else
      has to know. */
-  /* ---- counting what was earned before the mirror was switched on ----
-     Turning the setting on only affects what happens next, which leaves the pot
-     looking empty next to months of history. This works out what those months
-     would have added, so a parent can put it in once. */
-  function pendingMirror() {
-    var byChild = {};
-    state.ledger.forEach(function (l) {
-      if (!MIRRORED_KINDS[l.kind] || l.reversedBy || l.mirrored) return;
-      var v = num(l.self);
-      if (!v) return;
-      byChild[l.childId] = (byChild[l.childId] || 0) + v;
-    });
-    return byChild;
-  }
-  function pendingMirrorTotal() {
-    var byChild = pendingMirror(), sum = 0;
-    Object.keys(byChild).forEach(function (k) { sum += byChild[k]; });
-    return sum;
-  }
-
-  /* Each entry it counts is marked with the same field a live mirror uses, so
-     the history shows which rows went to the pot and a second run finds nothing
-     left to do — the button cannot double-count however often it is pressed.
-     One summary entry per child rather than one per row, so a year of history
-     does not bury the child's own page. */
-  function catchUpMirror(byParentId) {
-    var byChild = pendingMirror();
-    var ids = Object.keys(byChild);
-    if (!ids.length) return null;
-    state.ledger.forEach(function (l) {
-      if (!MIRRORED_KINDS[l.kind] || l.reversedBy || l.mirrored) return;
-      if (num(l.self)) l.mirrored = num(l.self);
-    });
-    var total = 0;
-    var entries = ids.map(function (childId) {
-      total += byChild[childId];
-      return record({
-        childId: childId, taskId: null, kind: "catchup",
-        self: 0, group: byChild[childId], note: "", by: byParentId || null
-      });
-    });
-    save();
-    return { entries: entries, total: total, children: ids.length };
-  }
-
   function groupTotal() {
     return state.ledger.reduce(function (sum, l) { return sum + num(l.group); }, 0);
   }
@@ -3916,8 +3853,7 @@ nav.tabs .badge {
     category: category, saveCategory: saveCategory,
     awardTask: awardTask, adjust: adjust, bump: bump, record: record,
     balance: balance, groupTotal: groupTotal,
-    pendingMirror: pendingMirror, pendingMirrorTotal: pendingMirrorTotal,
-    catchUpMirror: catchUpMirror, weekEarned: weekEarned, weekRange: weekRange,
+    weekEarned: weekEarned, weekRange: weekRange,
     weekWinner: weekWinner, standings: standings, topScorer: topScorer,
     birthdayInfo: birthdayInfo,
     claimTask: claimTask, pendingClaims: pendingClaims, decideClaim: decideClaim, claimFor: claimFor,
@@ -5654,7 +5590,6 @@ nav.tabs .badge {
       return (rw ? U.keyedTitleHtml(rw) : esc(t("ledger.reward"))) + (l.note ? " · " + U.trHtml(l, "note") : "");
     }
     if (l.kind === "start") return esc(t("ledger.start"));
-    if (l.kind === "catchup") return esc(t("ledger.catchup"));
     return l.note ? U.trHtml(l, "note") : esc(t("ledger.manual"));
   }
   function nameOf(childId) { var c = S.child(childId); return c ? c.name : "—"; }
@@ -6463,16 +6398,6 @@ nav.tabs .badge {
 
   /* ================= family settings ================= */
 
-  /* Offered only while there is something to count, and it says how much, so
-     nobody presses it to find out. */
-  function catchUpButton() {
-    var pending = S.pendingMirrorTotal();
-    if (!pending) return "";
-    return '<button type="button" class="btn ghost small block mt" data-act="p.catchUp">' +
-      "\u2211 " + esc(t("family.catchUp")) + " · " + U.signed(pending) + "</button>" +
-      '<div class="hint">' + esc(t("family.catchUpHint")) + "</div>";
-  }
-
   function familyTab() {
     var s = S.get();
     var html = '<div class="wrap"><h1>' + esc(t("family.title")) + "</h1>";
@@ -6494,8 +6419,7 @@ nav.tabs .badge {
           '<input type="checkbox" id="sMirror" style="width:auto;margin-top:4px"' +
             (s.settings.mirrorToGroup ? " checked" : "") + ">" +
           '<span class="grow"><strong>' + esc(t("family.mirror")) + "</strong></span></label>" +
-        '<div class="hint">' + esc(t("family.mirrorHint")) + "</div>" +
-        catchUpButton() + "</div>" +
+        '<div class="hint">' + esc(t("family.mirrorHint")) + "</div></div>" +
       '<div class="field"><label for="sPrize">' + esc(t("family.weeklyPrize")) + "</label>" +
         '<input id="sPrize" type="text" value="' + esc(s.settings.weeklyPrize || "") +
         '" placeholder="' + esc(t("movie.prizeDefault")) + '">' +
@@ -7025,18 +6949,6 @@ nav.tabs .badge {
       global.App.refresh();
     });
   });
-  U.on("p.catchUp", function () {
-    var pending = S.pendingMirrorTotal();
-    if (!pending) return U.toast(t("family.catchUpNone"), "");
-    U.confirmDialog(t("family.catchUpConfirm", { n: U.signed(pending) }), function () {
-      var done = S.catchUpMirror(me().id);
-      if (!done) return U.toast(t("family.catchUpNone"), "");
-      U.toast(t("family.catchUpDone", { n: U.signed(done.total) }), "good");
-      global.App.refresh();
-      if (done.total > 0) U.celebrate();
-    }, { kind: "good", yes: t("family.catchUp") });
-  });
-
   U.on("p.settingsSave", function (d, form) {
     var s = S.get();
     var names = familyNames();

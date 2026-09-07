@@ -683,51 +683,6 @@
   /* A reversal is a row of its own carrying the opposite amounts, so every
      total that simply adds the ledger up already accounts for it. Nothing else
      has to know. */
-  /* ---- counting what was earned before the mirror was switched on ----
-     Turning the setting on only affects what happens next, which leaves the pot
-     looking empty next to months of history. This works out what those months
-     would have added, so a parent can put it in once. */
-  function pendingMirror() {
-    var byChild = {};
-    state.ledger.forEach(function (l) {
-      if (!MIRRORED_KINDS[l.kind] || l.reversedBy || l.mirrored) return;
-      var v = num(l.self);
-      if (!v) return;
-      byChild[l.childId] = (byChild[l.childId] || 0) + v;
-    });
-    return byChild;
-  }
-  function pendingMirrorTotal() {
-    var byChild = pendingMirror(), sum = 0;
-    Object.keys(byChild).forEach(function (k) { sum += byChild[k]; });
-    return sum;
-  }
-
-  /* Each entry it counts is marked with the same field a live mirror uses, so
-     the history shows which rows went to the pot and a second run finds nothing
-     left to do — the button cannot double-count however often it is pressed.
-     One summary entry per child rather than one per row, so a year of history
-     does not bury the child's own page. */
-  function catchUpMirror(byParentId) {
-    var byChild = pendingMirror();
-    var ids = Object.keys(byChild);
-    if (!ids.length) return null;
-    state.ledger.forEach(function (l) {
-      if (!MIRRORED_KINDS[l.kind] || l.reversedBy || l.mirrored) return;
-      if (num(l.self)) l.mirrored = num(l.self);
-    });
-    var total = 0;
-    var entries = ids.map(function (childId) {
-      total += byChild[childId];
-      return record({
-        childId: childId, taskId: null, kind: "catchup",
-        self: 0, group: byChild[childId], note: "", by: byParentId || null
-      });
-    });
-    save();
-    return { entries: entries, total: total, children: ids.length };
-  }
-
   function groupTotal() {
     return state.ledger.reduce(function (sum, l) { return sum + num(l.group); }, 0);
   }
@@ -1490,8 +1445,7 @@
     category: category, saveCategory: saveCategory,
     awardTask: awardTask, adjust: adjust, bump: bump, record: record,
     balance: balance, groupTotal: groupTotal,
-    pendingMirror: pendingMirror, pendingMirrorTotal: pendingMirrorTotal,
-    catchUpMirror: catchUpMirror, weekEarned: weekEarned, weekRange: weekRange,
+    weekEarned: weekEarned, weekRange: weekRange,
     weekWinner: weekWinner, standings: standings, topScorer: topScorer,
     birthdayInfo: birthdayInfo,
     claimTask: claimTask, pendingClaims: pendingClaims, decideClaim: decideClaim, claimFor: claimFor,

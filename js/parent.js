@@ -159,7 +159,6 @@
       return (rw ? U.keyedTitleHtml(rw) : esc(t("ledger.reward"))) + (l.note ? " · " + U.trHtml(l, "note") : "");
     }
     if (l.kind === "start") return esc(t("ledger.start"));
-    if (l.kind === "catchup") return esc(t("ledger.catchup"));
     return l.note ? U.trHtml(l, "note") : esc(t("ledger.manual"));
   }
   function nameOf(childId) { var c = S.child(childId); return c ? c.name : "—"; }
@@ -968,16 +967,6 @@
 
   /* ================= family settings ================= */
 
-  /* Offered only while there is something to count, and it says how much, so
-     nobody presses it to find out. */
-  function catchUpButton() {
-    var pending = S.pendingMirrorTotal();
-    if (!pending) return "";
-    return '<button type="button" class="btn ghost small block mt" data-act="p.catchUp">' +
-      "\u2211 " + esc(t("family.catchUp")) + " · " + U.signed(pending) + "</button>" +
-      '<div class="hint">' + esc(t("family.catchUpHint")) + "</div>";
-  }
-
   function familyTab() {
     var s = S.get();
     var html = '<div class="wrap"><h1>' + esc(t("family.title")) + "</h1>";
@@ -999,8 +988,7 @@
           '<input type="checkbox" id="sMirror" style="width:auto;margin-top:4px"' +
             (s.settings.mirrorToGroup ? " checked" : "") + ">" +
           '<span class="grow"><strong>' + esc(t("family.mirror")) + "</strong></span></label>" +
-        '<div class="hint">' + esc(t("family.mirrorHint")) + "</div>" +
-        catchUpButton() + "</div>" +
+        '<div class="hint">' + esc(t("family.mirrorHint")) + "</div></div>" +
       '<div class="field"><label for="sPrize">' + esc(t("family.weeklyPrize")) + "</label>" +
         '<input id="sPrize" type="text" value="' + esc(s.settings.weeklyPrize || "") +
         '" placeholder="' + esc(t("movie.prizeDefault")) + '">' +
@@ -1530,18 +1518,6 @@
       global.App.refresh();
     });
   });
-  U.on("p.catchUp", function () {
-    var pending = S.pendingMirrorTotal();
-    if (!pending) return U.toast(t("family.catchUpNone"), "");
-    U.confirmDialog(t("family.catchUpConfirm", { n: U.signed(pending) }), function () {
-      var done = S.catchUpMirror(me().id);
-      if (!done) return U.toast(t("family.catchUpNone"), "");
-      U.toast(t("family.catchUpDone", { n: U.signed(done.total) }), "good");
-      global.App.refresh();
-      if (done.total > 0) U.celebrate();
-    }, { kind: "good", yes: t("family.catchUp") });
-  });
-
   U.on("p.settingsSave", function (d, form) {
     var s = S.get();
     var names = familyNames();
