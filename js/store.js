@@ -122,6 +122,7 @@
         lang: lang || "en",
         startPoints: START_POINTS,
         groupGoal: 1000,
+        mirrorToGroup: false,      /* personal points also feed the shared pot */
         weekStart: 0,
         movieDay: 6,
         translate: true,
@@ -206,6 +207,7 @@
       var used = s.money.length || s.deposits.length;
       if (!s.settings.currency) s.settings.currency = "ILS";
       else if (!used && s.settings.currency === "EUR") s.settings.currency = "ILS";
+      if (s.settings.mirrorToGroup === undefined) s.settings.mirrorToGroup = false;
       if (s.settings.pointsPerUnit === undefined) s.settings.pointsPerUnit = {};
       if (typeof s.settings.pointsPerUnit === "number") {
         var was = s.settings.pointsPerUnit;
@@ -576,9 +578,25 @@
 
   /* ---------------- points ---------------- */
 
+  /* Which movements count as a child earning or losing points, as opposed to
+     spending them or being handed an opening balance. Only these are mirrored
+     into the shared pot: buying a reward or cashing points in for money already
+     takes them out of the child's own balance, and charging the family a second
+     time for the same act would be double counting. A reversal carries the
+     negated group figure of the entry it cancels, so it unwinds a mirror
+     without being mirrored again itself. */
+  var MIRRORED_KINDS = { award: true, penalty: true, manual: true };
+
+  /* Everything that reaches the ledger comes through here, which is why the
+     mirror lives here too: every total that sums `group` picks it up for free,
+     and nothing else in the app has to know the setting exists. */
   function record(entry) {
     entry.id = uid("led");
     entry.ts = entry.ts || now();
+    if (state.settings.mirrorToGroup && MIRRORED_KINDS[entry.kind] && num(entry.self)) {
+      entry.group = num(entry.group) + num(entry.self);
+      entry.mirrored = num(entry.self);
+    }
     state.ledger.push(entry);
     save();
     return entry;

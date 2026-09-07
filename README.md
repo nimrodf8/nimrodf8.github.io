@@ -92,6 +92,24 @@ starting balance is a ledger entry, and a balance is replayed from the ledger.
 A mistaken award can be traced in the child's history instead of quietly
 drifting.
 
+### Personal points feeding the family pot
+
+Off by default. Turned on in the family settings, every point a child earns or
+loses on their own is counted into the shared pot as well: the child keeps
+theirs, and the family gets the same amount on top. A task that already gives
+the pot something keeps doing that, and the mirrored amount is added to it.
+
+Spending is deliberately not mirrored. Buying a reward or cashing points in for
+money already comes out of the child's own balance; charging the family a second
+time for the same act would be double counting. An opening balance is not
+mirrored either — nobody earned it.
+
+It happens in `record`, the single point where anything reaches the ledger, so
+every total that sums the group column picks it up without knowing the setting
+exists, and undoing an entry unwinds the mirror with it. Entries that were
+mirrored are marked as such in a child's history, so a pot that looks larger
+than the tasks explain can be accounted for.
+
 ## One family on every device
 
 Syncing is off when you start: the family lives in the browser it was entered

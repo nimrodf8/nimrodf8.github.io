@@ -799,6 +799,9 @@ nav.tabs .badge {
     "setup.reviewIntro": "Everything is ready. Each child starts with {n} points, and we will add a starter set of tasks you can change at any time.",
     "setup.createFamily": "Create the family",
     "setup.startingPoints": "Starting points",
+    "family.mirror": "Personal points also fill the family pot",
+    "family.mirrorHint": "Every point a child earns or loses on their own is counted into the shared pot as well \u2014 the child keeps theirs, and the family gets the same amount on top. Spending is not counted twice: buying a reward or cashing points in for money takes nothing out of the pot.",
+    "family.mirrorOn": "Also to the family pot",
     "family.startPoints": "Points a new child starts with",
     "family.startPointsHint": "Applies to children added from now on. A child already in the family keeps the balance they have — use ＋/－ points on their page to change it.",
     "kids.willStartWith": "Starts with {n} points",
@@ -1335,6 +1338,9 @@ nav.tabs .badge {
     "setup.reviewIntro": "Alles staat klaar. Elk kind begint met {n} punten en we voegen een startset taken toe die je altijd kunt aanpassen.",
     "setup.createFamily": "Gezin aanmaken",
     "setup.startingPoints": "Startpunten",
+    "family.mirror": "Persoonlijke punten vullen ook de gezinspot",
+    "family.mirrorHint": "Elk punt dat een kind zelf verdient of verliest telt ook mee voor de gezamenlijke pot \u2014 het kind houdt het zijne en het gezin krijgt hetzelfde bedrag erbij. Uitgeven telt niet dubbel: een beloning kopen of punten inwisselen voor geld haalt niets uit de pot.",
+    "family.mirrorOn": "Ook naar de gezinspot",
     "family.startPoints": "Punten waarmee een nieuw kind begint",
     "family.startPointsHint": "Geldt voor kinderen die je vanaf nu toevoegt. Een kind dat er al is, houdt zijn saldo — gebruik ＋/－ punten op zijn pagina om dat te wijzigen.",
     "kids.willStartWith": "Begint met {n} punten",
@@ -1871,6 +1877,9 @@ nav.tabs .badge {
     "setup.reviewIntro": "הכול מוכן. כל ילד מתחיל עם {n} נקודות, ונוסיף סט משימות פתיחה שאפשר לשנות בכל רגע.",
     "setup.createFamily": "יצירת המשפחה",
     "setup.startingPoints": "נקודות פתיחה",
+    "family.mirror": "נקודות אישיות נכנסות גם לקופה המשפחתית",
+    "family.mirrorHint": "כל נקודה שילד מרוויח או מפסיד לעצמו נספרת גם בקופה המשותפת — הילד שומר על שלו, והמשפחה מקבלת את אותו סכום בנוסף. הוצאה לא נספרת פעמיים: קניית פרס או המרת נקודות לכסף לא מורידה כלום מהקופה.",
+    "family.mirrorOn": "גם לקופה המשפחתית",
     "family.startPoints": "נקודות שילד חדש מתחיל איתן",
     "family.startPointsHint": "חל על ילדים שיתווספו מעכשיו. ילד שכבר במשפחה שומר על היתרה שלו — לשינוי השתמשו ב־＋/－ נקודות בעמוד שלו.",
     "kids.willStartWith": "מתחיל/ה עם {n} נקודות",
@@ -2507,6 +2516,7 @@ nav.tabs .badge {
         lang: lang || "en",
         startPoints: START_POINTS,
         groupGoal: 1000,
+        mirrorToGroup: false,      /* personal points also feed the shared pot */
         weekStart: 0,
         movieDay: 6,
         translate: true,
@@ -2591,6 +2601,7 @@ nav.tabs .badge {
       var used = s.money.length || s.deposits.length;
       if (!s.settings.currency) s.settings.currency = "ILS";
       else if (!used && s.settings.currency === "EUR") s.settings.currency = "ILS";
+      if (s.settings.mirrorToGroup === undefined) s.settings.mirrorToGroup = false;
       if (s.settings.pointsPerUnit === undefined) s.settings.pointsPerUnit = {};
       if (typeof s.settings.pointsPerUnit === "number") {
         var was = s.settings.pointsPerUnit;
@@ -2961,9 +2972,25 @@ nav.tabs .badge {
 
   /* ---------------- points ---------------- */
 
+  /* Which movements count as a child earning or losing points, as opposed to
+     spending them or being handed an opening balance. Only these are mirrored
+     into the shared pot: buying a reward or cashing points in for money already
+     takes them out of the child's own balance, and charging the family a second
+     time for the same act would be double counting. A reversal carries the
+     negated group figure of the entry it cancels, so it unwinds a mirror
+     without being mirrored again itself. */
+  var MIRRORED_KINDS = { award: true, penalty: true, manual: true };
+
+  /* Everything that reaches the ledger comes through here, which is why the
+     mirror lives here too: every total that sums `group` picks it up for free,
+     and nothing else in the app has to know the setting exists. */
   function record(entry) {
     entry.id = uid("led");
     entry.ts = entry.ts || now();
+    if (state.settings.mirrorToGroup && MIRRORED_KINDS[entry.kind] && num(entry.self)) {
+      entry.group = num(entry.group) + num(entry.self);
+      entry.mirrored = num(entry.self);
+    }
     state.ledger.push(entry);
     save();
     return entry;
@@ -5803,11 +5830,13 @@ nav.tabs .badge {
       '<div class="card flush">' + (entries.length
         ? '<ul class="list">' + entries.slice(0, 40).map(function (l) {
             var undone = !!l.reversedBy;
+            var mirror = S.num(l.mirrored)
+              ? ' <span class="tag brand">' + esc(t("family.mirrorOn")) + "</span>" : "";
             return '<li' + (undone ? ' class="paused"' : "") + '><div class="grow">' +
               '<div class="title"' + (undone ? ' style="text-decoration:line-through"' : "") + ">" +
                 ledgerLabelHtml(l) + "</div>" +
               '<div class="sub">' + esc(U.fmtDateTime(l.ts)) + (l.by && S.parent(l.by) ? " · " + esc(S.parent(l.by).name) : "") +
-                (l.reverses ? " · " + esc(t("undo.entry")) : "") + "</div></div>" +
+                (l.reverses ? " · " + esc(t("undo.entry")) : "") + mirror + "</div></div>" +
               '<div class="pts-cell">' + U.points(l.self) +
               (l.group ? "<small>" + esc(t("tasks.groupPts")) + " " + U.points(l.group) + "</small>" : "") + "</div>" +
               (S.canReverse(l)
@@ -6258,6 +6287,12 @@ nav.tabs .badge {
       '<div class="field"><label for="sStart">' + esc(t("family.startPoints")) + "</label>" +
         '<input id="sStart" type="number" min="0" step="10" value="' + S.num(s.settings.startPoints) + '">' +
         '<div class="hint">' + esc(t("family.startPointsHint")) + "</div></div>" +
+      '<div class="field">' +
+        '<label class="row tight" style="align-items:flex-start;font-weight:400">' +
+          '<input type="checkbox" id="sMirror" style="width:auto;margin-top:4px"' +
+            (s.settings.mirrorToGroup ? " checked" : "") + ">" +
+          '<span class="grow"><strong>' + esc(t("family.mirror")) + "</strong></span></label>" +
+        '<div class="hint">' + esc(t("family.mirrorHint")) + "</div></div>" +
       '<div class="field"><label for="sPrize">' + esc(t("family.weeklyPrize")) + "</label>" +
         '<input id="sPrize" type="text" value="' + esc(s.settings.weeklyPrize || "") +
         '" placeholder="' + esc(t("movie.prizeDefault")) + '">' +
@@ -6788,6 +6823,7 @@ nav.tabs .badge {
     s.settings.familyName = names[familyNameLang] || s.settings.familyName ||
       Object.keys(names).map(function (k) { return names[k]; })[0] || "";
     s.settings.startPoints = Math.max(0, S.num(U.el("#sStart", form).value));
+    s.settings.mirrorToGroup = !!(U.el("#sMirror", form) || {}).checked;
     s.settings.weeklyPrize = U.el("#sPrize", form).value.trim();
     s.settings.weekStart = S.num(U.el("#sWeek", form).value);
     s.settings.movieDay = S.num(U.el("#sMovie", form).value);

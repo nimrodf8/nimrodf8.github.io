@@ -524,11 +524,13 @@
       '<div class="card flush">' + (entries.length
         ? '<ul class="list">' + entries.slice(0, 40).map(function (l) {
             var undone = !!l.reversedBy;
+            var mirror = S.num(l.mirrored)
+              ? ' <span class="tag brand">' + esc(t("family.mirrorOn")) + "</span>" : "";
             return '<li' + (undone ? ' class="paused"' : "") + '><div class="grow">' +
               '<div class="title"' + (undone ? ' style="text-decoration:line-through"' : "") + ">" +
                 ledgerLabelHtml(l) + "</div>" +
               '<div class="sub">' + esc(U.fmtDateTime(l.ts)) + (l.by && S.parent(l.by) ? " · " + esc(S.parent(l.by).name) : "") +
-                (l.reverses ? " · " + esc(t("undo.entry")) : "") + "</div></div>" +
+                (l.reverses ? " · " + esc(t("undo.entry")) : "") + mirror + "</div></div>" +
               '<div class="pts-cell">' + U.points(l.self) +
               (l.group ? "<small>" + esc(t("tasks.groupPts")) + " " + U.points(l.group) + "</small>" : "") + "</div>" +
               (S.canReverse(l)
@@ -979,6 +981,12 @@
       '<div class="field"><label for="sStart">' + esc(t("family.startPoints")) + "</label>" +
         '<input id="sStart" type="number" min="0" step="10" value="' + S.num(s.settings.startPoints) + '">' +
         '<div class="hint">' + esc(t("family.startPointsHint")) + "</div></div>" +
+      '<div class="field">' +
+        '<label class="row tight" style="align-items:flex-start;font-weight:400">' +
+          '<input type="checkbox" id="sMirror" style="width:auto;margin-top:4px"' +
+            (s.settings.mirrorToGroup ? " checked" : "") + ">" +
+          '<span class="grow"><strong>' + esc(t("family.mirror")) + "</strong></span></label>" +
+        '<div class="hint">' + esc(t("family.mirrorHint")) + "</div></div>" +
       '<div class="field"><label for="sPrize">' + esc(t("family.weeklyPrize")) + "</label>" +
         '<input id="sPrize" type="text" value="' + esc(s.settings.weeklyPrize || "") +
         '" placeholder="' + esc(t("movie.prizeDefault")) + '">' +
@@ -1509,6 +1517,7 @@
     s.settings.familyName = names[familyNameLang] || s.settings.familyName ||
       Object.keys(names).map(function (k) { return names[k]; })[0] || "";
     s.settings.startPoints = Math.max(0, S.num(U.el("#sStart", form).value));
+    s.settings.mirrorToGroup = !!(U.el("#sMirror", form) || {}).checked;
     s.settings.weeklyPrize = U.el("#sPrize", form).value.trim();
     s.settings.weekStart = S.num(U.el("#sWeek", form).value);
     s.settings.movieDay = S.num(U.el("#sMovie", form).value);
